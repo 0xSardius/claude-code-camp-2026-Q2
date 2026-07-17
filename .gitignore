@@ -4,3 +4,7 @@
 # Environment / secrets
 .env
 .env.local
+
+node_modules/
+
+week0_explore/preview/data/world/
