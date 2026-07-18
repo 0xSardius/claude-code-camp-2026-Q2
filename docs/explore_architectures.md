@@ -29,3 +29,11 @@ Observations with Sonnet 5:
 - I also have it save after each level (applying my own rpg knowledge here, I play a lot of tabletop rpgs (Warhammer 40k dark heresy) and video game rpgs (You name them, I've played them, currently in a 135h rogue trader run))
 - applying lessons I learned building with ElizaOS to give dummy the proper personality - thief with a heart of gold, basically based on the character from the book The Blacktongue Thief
 - end of this session has been good, leveled up backstab twice, identified zombie as the highest newbie NPC to hunt, skill combo to open up the fight with
+
+## 3. Subagent SDK Architecture
+
+- Already seeing potential to do agentic multiplayer dungeon
+- was able to get Sonnet to manually do character creation, he picked another Thief. Not mad at that because I love me some rogue.
+- I pivoted from this and made a new character: balthasar / magicman. He is a wizard.
+- Built subagent architecture that can be used to scale up to n+ arbitrary agents
+- Testing success: Balthasar found his starting guild, engaged in class apropriate combat. Ran a 30 turn loop successfully.
