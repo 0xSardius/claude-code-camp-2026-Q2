@@ -37,3 +37,10 @@ Observations with Sonnet 5:
 - I pivoted from this and made a new character: balthasar / magicman. He is a wizard.
 - Built subagent architecture that can be used to scale up to n+ arbitrary agents
 - Testing success: Balthasar found his starting guild, engaged in class apropriate combat. Ran a 30 turn loop successfully.
+
+## 4. n8n Architecture
+
+- I followed the video along, and admittedly, don't have big experience with a GUI agent automation
+- Interesting, but I feel I already explored the architectures I want through claude code and essentially solved the task already, so I just used this as a learning session, as it felt heavy overhead for something I wouldn't likely ever use in production
+- interesting to know what n8n offers, I don't quite see how I couldn't replicate what it offers as using fable as needed though
+- A nice exercise to understand clearly what won't work and why. It feels limiting for the overall use case, and we need a better ability to make more custom modifications, that are responsive and iterate through our requirements and changes as we go, un-intermediated by a 3rd party.
