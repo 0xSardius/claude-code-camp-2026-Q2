@@ -22,6 +22,7 @@ that step's Python code.
 | Ruby vs Python | **Run alongside** each other, matching the `explore_architecture` pattern of comparing approaches side by side. `week1_baseline/ruby/00_config` is untouched. |
 | Tooling | **`uv`** + `pyproject.toml`, matching the existing precedent in `week0_explore/circlemud-world-parser` (`uv` 0.11.29 already installed on this machine) |
 | Testing | **Smoke test only** for now — port `examples/example.rb` to `examples/example.py`, same as the Ruby step currently has. No formal `pytest` suite yet (revisit once there's real logic worth unit-testing, e.g. once the agent loop lands). |
+| Python package name | **`boukensha`** (confirmed explicitly, not just assumed) — matches the Ruby module name 1:1, consistent with the literal-mirror call. Distinct from the `.boukensha/` config directory (see below), which stays that name regardless since it's the shared runtime contract both Ruby and Python read from. |
 
 ## Reference files (Ruby source of truth)
 
