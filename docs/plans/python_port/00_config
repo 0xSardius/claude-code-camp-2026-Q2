@@ -1,0 +1,224 @@
+# Python Port Plan — Step 00_config
+
+## Goal
+
+Port `week1_baseline/ruby/00_config` (the `Boukensha::Config` + `Boukensha::Tasks`
+layer) to Python at `week1_baseline/python/00_config`, as a **literal
+architectural mirror** — same classes, same method names/behavior, same
+resolution order — not a from-scratch Pythonic redesign. Ruby stays live;
+this is an addition, not a replacement (see Decisions below).
+
+This is the first of what will be a repeating pattern as week1_baseline grows
+(01_..., 02_..., etc. — a MUD connection layer, the agent loop, tool-calling,
+memory). Treat this plan/directory as the template for how future steps get
+ported: one `docs/plans/python_port/<step>` file per step, written before
+that step's Python code.
+
+## Decisions (confirmed with the user 2026-07-20)
+
+| Question | Decision |
+|---|---|
+| Port fidelity | **Literal mirror** of the Ruby architecture (Config class, abstract Base task class, Player subclass) — not an idiomatic-Python rewrite |
+| Ruby vs Python | **Run alongside** each other, matching the `explore_architecture` pattern of comparing approaches side by side. `week1_baseline/ruby/00_config` is untouched. |
+| Tooling | **`uv`** + `pyproject.toml`, matching the existing precedent in `week0_explore/circlemud-world-parser` (`uv` 0.11.29 already installed on this machine) |
+| Testing | **Smoke test only** for now — port `examples/example.rb` to `examples/example.py`, same as the Ruby step currently has. No formal `pytest` suite yet (revisit once there's real logic worth unit-testing, e.g. once the agent loop lands). |
+
+## Reference files (Ruby source of truth)
+
+Everything below is a straight read of the current Ruby implementation. Do
+not port from memory — re-read these before writing the Python equivalents,
+since they may have changed since this plan was written.
+
+| Ruby file | Lines | Role |
+|---|---|---|
+| [`week1_baseline/ruby/00_config/lib/boukensha.rb`](../../../week1_baseline/ruby/00_config/lib/boukensha.rb) | 2 | Top-level require, aggregates the two sub-files |
+| [`week1_baseline/ruby/00_config/lib/boukensha/config.rb`](../../../week1_baseline/ruby/00_config/lib/boukensha/config.rb) | 94 | `Boukensha::Config` — resolves `.boukensha/` dir, loads `.env` + `settings.yaml`, exposes `tasks`/`mud_*`/`dig` |
+| [`week1_baseline/ruby/00_config/lib/boukensha/tasks/base.rb`](../../../week1_baseline/ruby/00_config/lib/boukensha/tasks/base.rb) | 60 | `Boukensha::Tasks::Base` — abstract, classmethod-only, stateless; `provider`/`model`/`prompt_override?`/`prompt`/`system_prompt` |
+| [`week1_baseline/ruby/00_config/lib/boukensha/tasks/player.rb`](../../../week1_baseline/ruby/00_config/lib/boukensha/tasks/player.rb) | 9 | `Boukensha::Tasks::Player < Base` — just sets `task_name = "player"` |
+| [`week1_baseline/ruby/00_config/prompts/system.md`](../../../week1_baseline/ruby/00_config/prompts/system.md) | 1 | Default system prompt shipped with the library |
+| [`week1_baseline/ruby/00_config/examples/example.rb`](../../../week1_baseline/ruby/00_config/examples/example.rb) | 26 | Smoke test — builds a `Config`, prints resolved settings |
+| [`week1_baseline/ruby/00_config/Gemfile`](../../../week1_baseline/ruby/00_config/Gemfile) | 3 | Dependencies: just `dotenv` |
+| [`week1_baseline/ruby/00_config/README.md`](../../../week1_baseline/ruby/00_config/README.md) | — | Design rationale, config schema, directory resolution order, expected run output |
+| [`week1_baseline/bin/00_config`](../../../week1_baseline/bin/00_config) | 4 | Bash launcher (`cd` into the step dir, `bundle exec ruby examples/example.rb`) — **note:** this had a path bug (missing `ruby/` segment) fixed 2026-07-19; `examples/example.rb`'s `BOUKENSHA_DIR` override also had a matching off-by-one-directory bug, also fixed. Don't reintroduce either when writing the Python launcher/example. |
+
+Also relevant as tooling precedent (not part of `00_config`, but the pattern
+to follow for `uv`):
+
+| Reference | Why |
+|---|---|
+| [`week0_explore/circlemud-world-parser/pyproject.toml`](../../../week0_explore/circlemud-world-parser/pyproject.toml) | Existing `uv` + `pyproject.toml` shape in this repo — build backend, `[project]`, `[tool.ruff]`, `[dependency-groups] dev` |
+| [`week0_explore/circlemud-world-parser/.python-version`](../../../week0_explore/circlemud-world-parser/.python-version) | Pins `3.14` — `uv` provisions the interpreter itself, doesn't need to match system Python (this machine's system `python3` is 3.12.3) |
+| [`week0_explore/circlemud-world-parser/.gitignore`](../../../week0_explore/circlemud-world-parser/.gitignore) | Per-project `.gitignore` (`*.pyc`, etc.) rather than root-level Python patterns — `uv.lock`/`pyproject.toml`/`requirements.txt` are committed there; `.venv/` is untracked via its own self-generated `.venv/.gitignore` (`uv venv` writes a `*` into it automatically) |
+
+## Target directory layout
+
+```
+week1_baseline/python/00_config/
+  pyproject.toml          # [project] deps: python-dotenv, pyyaml
+  uv.lock                 # committed, matches circlemud-world-parser convention
+  .python-version         # "3.14", matches circlemud-world-parser
+  README.md                # ported from the Ruby README (schema/resolution-order docs)
+  boukensha/
+    __init__.py            # mirrors lib/boukensha.rb's aggregating require
+    config.py               # Boukensha::Config -> Config
+    tasks/
+      __init__.py
+      base.py                # Boukensha::Tasks::Base -> Base
+      player.py               # Boukensha::Tasks::Player -> Player
+  prompts/
+    system.md                # copied as-is from the Ruby prompts/system.md
+  examples/
+    example.py                # ported from examples/example.rb
+```
+
+Deliberate deviation from the Ruby layout: **no `lib/` wrapper directory.**
+Ruby needs `lib/` because `require_relative` has no package-root concept;
+Python's packaging tooling (the `boukensha/` directory next to
+`pyproject.toml`) already provides that separation, so adding a redundant
+`lib/` would fight the tooling for no benefit. Everything *inside*
+`boukensha/` mirrors the Ruby `lib/boukensha/` tree 1:1.
+
+## Dependency mapping
+
+| Ruby (Gemfile) | Python (pyproject.toml) | Purpose |
+|---|---|---|
+| `dotenv` | `python-dotenv` | load `.boukensha/.env` |
+| (Ruby stdlib `YAML`) | `pyyaml` | parse `settings.yaml` |
+| (Ruby stdlib `Pathname`) | stdlib `pathlib` | path resolution |
+
+Nothing else needed for this step — no `anthropic` SDK yet, matching the
+Ruby step (it only checks `ENV['ANTHROPIC_API_KEY'].nil?`, never calls the
+API). That dependency lands in whichever future step actually drives the
+agent loop.
+
+## File-by-file port notes
+
+### `config.rb` → `config.py`
+
+Straight port of: `DEFAULT_DIR` (`~/.boukensha`), `PROMPTS_DIR` (resolved
+relative to the module's own location — in Python,
+`Path(__file__).parent.parent / "prompts"`, which lands on
+`00_config/prompts` same as the Ruby `File.expand_path("../../prompts",
+__dir__)` does from `lib/boukensha/config.rb`), `resolve_dir` (env var
+`BOUKENSHA_DIR` else default), `load_env` (`dotenv.load_dotenv` if the file
+exists), `load_settings` (`yaml.safe_load`, default `{}`), `tasks(name=None)`,
+`user_prompts_dir`, `mud_host`/`mud_port`/`mud_username`/`mud_password`,
+`dig(*keys)`, `__repr__`.
+
+**Deviation:** Ruby's `fetch`/`dig` try both string and symbol keys
+(`node[key.to_s] || node[key.to_sym]`) because Ruby callers might pass either.
+Python has no symbol/string duck-typing, and `yaml.safe_load` always produces
+string keys — so the Python `dig`/`fetch` just index by string. Don't try to
+replicate the dual-key lookup; it doesn't map onto Python and isn't needed.
+
+### `tasks/base.rb` → `tasks/base.py`
+
+Ruby's "abstract, classmethod-only, never instantiated" pattern needs a
+Python equivalent. Plan: a plain class using `@classmethod` for every public
+method (`provider`, `model`, `prompt_override?` → `prompt_override`,
+`prompt`, `system_prompt`), a `TASK_NAME` class attribute subclasses must set
+(checked in a `task_name()` classmethod that raises `NotImplementedError` if
+unset — mirrors Ruby's `raise NotImplementedError` in `.task_name`), and the
+private helpers (`fetch`, `read_user_prompt`, `read_default_prompt`,
+`read_file`) as leading-underscore classmethods/staticmethods. Same
+raise-on-missing behavior for `provider`/`model` (Ruby raises `ArgumentError`
+→ Python should raise `ValueError` with the same message shape:
+`"tasks.<task_name>.provider is required in settings.yaml"`).
+
+### `tasks/player.rb` → `tasks/player.py`
+
+Trivial: `class Player(Base): TASK_NAME = "player"`.
+
+### `boukensha.rb` → `boukensha/__init__.py`
+
+Ruby's top-level file just requires the two submodules so callers can
+`require "boukensha"` and get everything. Python equivalent: import and
+re-export `Config`, `Base`, `Player` from `__init__.py` so callers can
+`from boukensha import Config`.
+
+### `prompts/system.md` → `prompts/system.md`
+
+Copy verbatim, no translation needed — it's just prompt text, not code.
+(Open question below: keep as an independent copy vs. share one file between
+`ruby/` and `python/`.)
+
+### `examples/example.rb` → `examples/example.py`
+
+Port the diagnostic script 1:1: override `BOUKENSHA_DIR` to point at the
+repo-root `.boukensha/` (get the relative-path math right — see the bug note
+in the reference table above), build a `Config`, print the same fields in the
+same order (config dir, tasks, provider, model, prompt override, system
+prompt preview, MUD host/port, MUD user, API key set?, repr). This should
+produce **output equivalent to the Ruby version** when pointed at the same
+`.boukensha/settings.yaml` — that equivalence is the acceptance test for this
+whole port step (see Milestones).
+
+### `Gemfile`/`Gemfile.lock` → `pyproject.toml`/`uv.lock`
+
+See Dependency mapping above. `Gemfile.lock` is gitignored per the
+library-convention decision made for the Ruby step; whether `uv.lock` should
+follow the same logic is an open question below (current plan says commit
+it, matching `circlemud-world-parser` instead).
+
+### `README.md` → `README.md`
+
+Port the design-rationale sections (config directory resolution order,
+directory structure, task concept, system-prompt resolution order,
+configuration schema, run example) — update the "Run Example" section's
+expected output to the Python launcher's actual output once that's built.
+
+## New bin launcher
+
+`week1_baseline/bin/00_config` stays Ruby-only (untouched, per the
+"run alongside" decision). Add a sibling script — proposed name
+`week1_baseline/bin/00_config_python` (open question below on naming) — that
+does the Python-side equivalent of the existing bash wrapper:
+
+```bash
+#!/usr/bin/env bash
+cd "$(dirname "$0")/../python/00_config"
+uv run python examples/example.py
+```
+
+## `.gitignore` additions needed
+
+Following the `circlemud-world-parser` precedent (per-project `.gitignore`
+rather than root-level Python patterns):
+
+- Add `week1_baseline/python/00_config/.gitignore` with `__pycache__/`,
+  `*.pyc` (mirrors `circlemud-world-parser/.gitignore`'s `*.pyc`).
+- `.venv/` should self-ignore once `uv venv`/`uv sync` creates it (same
+  mechanism as the sibling project) — verify this actually happens rather
+  than assuming, and add an explicit ignore if it doesn't.
+- `uv.lock` — **commit it** (matches `circlemud-world-parser`), unless the
+  open question below about lockfile policy changes that.
+- No root-level `.gitignore` changes anticipated, but revisit if a pattern
+  needs to apply across all future Python steps rather than per-step.
+
+## Milestones / execution order
+
+1. Scaffold `week1_baseline/python/00_config/` — `pyproject.toml`,
+   `.python-version`, `uv venv`/`uv sync`, empty package skeleton.
+2. Port `config.py` — no callers yet, just get it importing cleanly.
+3. Port `tasks/base.py` + `tasks/player.py`.
+4. Copy `prompts/system.md`.
+5. Port `examples/example.py`.
+6. **Run both launchers back to back against the same
+   `.boukensha/settings.yaml` and diff the output** — this is the real
+   acceptance check for the port, not just "it runs without crashing."
+7. Add the `bin/00_config_python` launcher, `chmod +x` it.
+8. Add the per-project `.gitignore`, verify `git status --ignored` looks
+   right (same verification discipline as the Ruby step's gitignore work).
+9. Port the README.
+
+## Decisions (round 2, confirmed with the user 2026-07-20)
+
+| Question | Decision |
+|---|---|
+| Launcher naming | **`bin/00_config_python`** |
+| `requirements.txt` export | **Skip it** — `uv.lock` alone is sufficient, no pip-only consumers to support yet |
+| `prompts/system.md` sharing | **Independent copy** per language — simpler, no cross-tree coupling. Accept the small risk of drift; revisit if it actually causes a problem. |
+| `uv.lock` commit policy | **Commit it**, matching `circlemud-world-parser`. (Deliberately opposite to the `Gemfile.lock` call on the Ruby side — confirmed intentional, not an oversight: `uv.lock`/`circlemud-world-parser` is the established precedent in *this* repo for Python, whereas the Ruby gem-library convention doesn't have an equivalent local precedent pulling the other way.) |
+
+All open questions from the first pass are now resolved — this plan is ready
+to implement.
