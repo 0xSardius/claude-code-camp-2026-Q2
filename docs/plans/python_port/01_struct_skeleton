@@ -1,0 +1,251 @@
+# Python Port Plan — Step 01_struct_skeleton
+
+## Goal
+
+Port `week1_baseline/ruby/01_struct_skeleton` (the `Tool`/`Message`/`Context`
+data-structure layer, built on top of `00_config`) to Python at
+`week1_baseline/python/01_struct_skeleton`. Same conventions as the
+`00_config` port — see [`docs/plans/python_port/00_config`](00_config) for
+the full rationale; this doc only covers what's new or different for this
+step.
+
+## Decisions carried forward from `00_config` (unchanged)
+
+| Question | Decision |
+|---|---|
+| Port fidelity | Literal mirror of the Ruby architecture |
+| Ruby vs Python | Run alongside each other; `week1_baseline/ruby/01_struct_skeleton` is untouched |
+| Tooling | `uv` + `pyproject.toml` |
+| Testing | Smoke test only (port `examples/example.rb` → `examples/example.py`) |
+| Python package name | `boukensha` |
+
+## Decisions specific to this step (confirmed with the user 2026-07-20)
+
+| Question | Decision |
+|---|---|
+| README describes a `Context` with `token_budget` that the actual `context.rb` code doesn't have | **Port the actual code as-is** (no `token_budget`, includes `task=`). Treat the README's extra fields as aspirational/future-step documentation, not a spec to implement now — consistent with how `00_config`'s README explicitly called out known gaps rather than the code chasing the docs. If a later Ruby step actually adds `token_budget` to `context.rb`, port that when it lands, not before. |
+
+## Important note: each step mirrors its own Ruby sibling, not the previous step's Python port
+
+`week1_baseline/ruby/01_struct_skeleton/lib/boukensha/config.rb` is **not**
+identical to `00_config`'s version — it's missing the `PROMPTS_DIR` constant
+(and the comment above it). This isn't a bug: this step's `examples/example.rb`
+never calls `system_prompt` with a `default_prompts_dir:` argument, so it
+doesn't need it. Confirmed via `diff` against `00_config/lib/boukensha/config.rb`.
+
+This matches how the Ruby side itself works — each numbered step has its
+own complete, independent `lib/boukensha/` tree (confirmed: `tasks/base.rb`
+and `tasks/player.rb` **are** byte-identical between the two steps, but
+`config.rb` isn't). The Python port should follow the same rule: **each
+step's `boukensha/` package is a fresh, independent mirror of that step's
+own Ruby directory** — not an import of `python/00_config`, and not
+required to carry every constant/method the previous step had if this
+step's Ruby doesn't have it either. Concretely: `python/01_struct_skeleton/boukensha/config.py`
+should **omit** `PROMPTS_DIR`, matching this step's `config.rb` exactly,
+even though `python/00_config/boukensha/config.py` has it.
+
+## Reference files (Ruby source of truth)
+
+| Ruby file | Lines | Role |
+|---|---|---|
+| [`.../01_struct_skeleton/lib/boukensha.rb`](../../../week1_baseline/ruby/01_struct_skeleton/lib/boukensha.rb) | 5 | Top-level require, now also pulls in `tool`, `message`, `context` |
+| [`.../01_struct_skeleton/lib/boukensha/config.rb`](../../../week1_baseline/ruby/01_struct_skeleton/lib/boukensha/config.rb) | 91 | Same as `00_config`'s `Config`, minus `PROMPTS_DIR` (see note above) |
+| [`.../01_struct_skeleton/lib/boukensha/tasks/base.rb`](../../../week1_baseline/ruby/01_struct_skeleton/lib/boukensha/tasks/base.rb) | 60 | Byte-identical to `00_config`'s version |
+| [`.../01_struct_skeleton/lib/boukensha/tasks/player.rb`](../../../week1_baseline/ruby/01_struct_skeleton/lib/boukensha/tasks/player.rb) | 9 | Byte-identical to `00_config`'s version |
+| [`.../01_struct_skeleton/lib/boukensha/tool.rb`](../../../week1_baseline/ruby/01_struct_skeleton/lib/boukensha/tool.rb) | 7 | `Tool = Struct.new(:name, :description, :parameters, :block)` + custom `to_s` |
+| [`.../01_struct_skeleton/lib/boukensha/message.rb`](../../../week1_baseline/ruby/01_struct_skeleton/lib/boukensha/message.rb) | 8 | `Message = Struct.new(:role, :content, :tool_use_id)` + custom `to_s` |
+| [`.../01_struct_skeleton/lib/boukensha/context.rb`](../../../week1_baseline/ruby/01_struct_skeleton/lib/boukensha/context.rb) | 29 | `Context` — plain class (not a Struct), holds `task`/`system`/`messages`/`tools`, `register_tool`/`add_message`/`tool_count`/`turn_count`/`to_s` |
+| [`.../01_struct_skeleton/examples/example.rb`](../../../week1_baseline/ruby/01_struct_skeleton/examples/example.rb) | 34 | Smoke test — builds a `Config`, a `Context`, registers a `move` tool, adds 2 messages, prints everything |
+| [`.../01_struct_skeleton/Gemfile`](../../../week1_baseline/ruby/01_struct_skeleton/Gemfile) | 3 | Same as `00_config`: just `dotenv` |
+| [`.../01_struct_skeleton/README.md`](../../../week1_baseline/ruby/01_struct_skeleton/README.md) | — | Data structure field tables + example `to_s` outputs — **note the `Context` examples describe a not-yet-implemented `token_budget`, see Decisions above** |
+| [`week1_baseline/bin/01_struct_skeleton`](../../../week1_baseline/bin/01_struct_skeleton) | 4 | Bash launcher, added 2026-07-20 (mirrors `bin/00_config`'s shape). The matching `BOUKENSHA_DIR` off-by-one bug in `examples/example.rb` (3 `../` instead of 4) was also found and fixed same day — same root cause as the `00_config` bug, same fix. |
+
+## Target directory layout
+
+```
+week1_baseline/python/01_struct_skeleton/
+  pyproject.toml          # name = "boukensha", same deps as 00_config
+  uv.lock                 # committed
+  .python-version          # "3.14"
+  .gitignore                # __pycache__/, *.pyc (same as 00_config)
+  README.md                  # ported from the Ruby README
+  boukensha/
+    __init__.py              # exports Config, Base, Player, Tool, Message, Context
+    config.py                 # NOTE: no PROMPTS_DIR, see note above
+    tasks/
+      __init__.py
+      base.py                  # identical port to 00_config's
+      player.py                 # identical port to 00_config's
+    tool.py                     # Tool dataclass
+    message.py                   # Message dataclass
+    context.py                    # Context class
+  examples/
+    example.py                    # ported from examples/example.rb
+```
+
+## File-by-file port notes
+
+### `tool.rb` → `tool.py`, `message.rb` → `message.py`
+
+Ruby's `Struct.new(...) do ... end` is a lightweight named-field value
+object with room for custom methods — the README says explicitly: *"We are
+using Structs because they are lightweight and make the code readable for
+learning. In practice we would probably use Classes."* Python's direct
+analogue with the same properties (lightweight, auto-generated `__init__`,
+easy to bolt on a custom method) is `@dataclass`.
+
+**Slice-width gotcha, already accounted for below:** Ruby's `x[0..40]` is an
+*inclusive* range — 41 characters. Python's `x[:40]` is 40 characters. Don't
+naively translate `[0..N]` to `[:N]` — it needs to be `[:N+1]` to match. The
+snippets below already use the correct width (`[:41]`, `[:61]`); verify
+against real output in the parity test regardless, the same way the
+`00_config` port caught the `True`/`False` vs `true`/`false` formatting
+mismatch.
+
+```python
+from dataclasses import dataclass
+from typing import Any, Callable
+
+@dataclass
+class Tool:
+    name: str
+    description: str
+    parameters: dict[str, Any]
+    block: Callable[..., Any]
+
+    def __repr__(self) -> str:
+        return f"#<Tool name={self.name} description={str(self.description)[:41]} params={list(self.parameters.keys())}>"
+```
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class Message:
+    role: str
+    content: str
+    tool_use_id: str | None = None
+
+    def __repr__(self) -> str:
+        id_tag = f" [{self.tool_use_id}]" if self.tool_use_id else ""
+        return f"#<Message role={self.role}{id_tag} content={str(self.content)[:61]}...>"
+```
+
+### `context.rb` → `context.py`
+
+Ruby explicitly uses a **plain class** here, not a Struct — worth preserving
+that distinction (it's an architectural signal: `Context` has real behavior
+—`register_tool`, `add_message`, computed `tool_count`/`turn_count` — not
+just data). Python: a plain class, not a `@dataclass`, mirroring that
+choice:
+
+```python
+class Context:
+    def __init__(self, task, system=None):
+        self.task = task
+        self.system = system
+        self.messages: list[Message] = []
+        self.tools: dict[str, Tool] = {}
+
+    def register_tool(self, tool: Tool) -> None:
+        self.tools[tool.name] = tool
+
+    def add_message(self, role, content, *, tool_use_id=None) -> None:
+        self.messages.append(Message(role, content, tool_use_id))
+
+    @property
+    def tool_count(self) -> int:
+        return len(self.tools)
+
+    @property
+    def turn_count(self) -> int:
+        return len(self.messages)
+
+    def __repr__(self) -> str:
+        task_name = self.task.task_name() if self.task else None
+        return f"#<Context task={task_name} turns={self.turn_count} tools={self.tool_count}>"
+```
+
+Note `task&.task_name` (Ruby, safe navigation on a possibly-nil task) →
+`self.task.task_name() if self.task else None` (Python) — and remember
+`task_name` is a **method call** in the Python port (`Base.task_name()`
+classmethod, per the `00_config` port), not a bare attribute access, unlike
+Ruby's `.task_name` (which reads as a method call there too, since Ruby
+method calls don't need parens — same underlying shape, just don't
+accidentally write `self.task.task_name` without `()` in Python and get a
+bound-method object instead of a string).
+
+### `config.rb` → `config.py`
+
+Same port as `00_config`'s, **minus `PROMPTS_DIR`** — see the note above.
+Re-read this step's actual `config.rb` before writing, don't copy
+`00_config`'s `config.py` and just delete the constant after the fact (small
+risk of missing some other divergence that hasn't been spotted yet).
+
+### `tasks/base.rb` → `tasks/base.py`, `tasks/player.rb` → `tasks/player.py`
+
+Byte-identical Ruby source to `00_config` → identical Python port. Copy
+`python/00_config/boukensha/tasks/base.py` and `player.py` over as a
+starting point, but still re-diff both Ruby sources first to confirm they
+really are unchanged before assuming the existing Python files are still
+accurate.
+
+### `boukensha.rb` → `boukensha/__init__.py`
+
+Now aggregates five things instead of two: `Config`, `Player` (and
+transitively `Base`), `Tool`, `Message`, `Context`.
+
+### `examples/example.rb` → `examples/example.py`
+
+Port 1:1: build a `Config`, resolve the player's system prompt, construct a
+`Context`, register a `move` tool with an inline lambda block, add a user
+and an assistant message, then print `Config`/`Context`/`Tool`/each
+`Message`. Get the `BOUKENSHA_DIR` relative-path math right (4 `../`
+equivalent from `examples/`, matching the fix already applied to the Ruby
+side — see the bin launcher note above).
+
+## New bin launcher
+
+`week1_baseline/bin/01_struct_skeleton` stays Ruby-only. Add
+`week1_baseline/bin/01_struct_skeleton_python`:
+
+```bash
+#!/usr/bin/env bash
+cd "$(dirname "$0")/../python/01_struct_skeleton"
+uv run python examples/example.py
+```
+
+## `.gitignore`
+
+Repo-root patterns (`Gemfile.lock`, `**/vendor/bundle/`, `.bundle/`,
+`.boukensha/*`) already cover the Ruby side automatically — confirmed no
+changes needed there when `bin/01_struct_skeleton` was added. For Python,
+same as `00_config`: add a per-project `week1_baseline/python/01_struct_skeleton/.gitignore`
+with `__pycache__/` and `*.pyc`; `.venv/` self-ignores via `uv`; `uv.lock`
+gets committed.
+
+## Milestones / execution order
+
+Same shape as `00_config`'s:
+
+1. Scaffold `week1_baseline/python/01_struct_skeleton/` (`pyproject.toml`,
+   `.python-version`, `uv sync`).
+2. Port `config.py` (re-reading this step's actual `config.rb`, not copying
+   `00_config`'s and editing).
+3. Port `tasks/base.py` + `tasks/player.py` (re-diff Ruby sources first).
+4. Port `tool.py` and `message.py` as dataclasses.
+5. Port `context.py` as a plain class.
+6. Port `examples/example.py`.
+7. **Run both launchers back to back against the same `.boukensha/settings.yaml`
+   and diff the output** — same acceptance bar as `00_config`. Pay particular
+   attention to the slice-width gotcha raised above (`[0..N]` vs `[:N+1]`),
+   and to bool-formatting (`true`/`false` vs `True`/`False`) in case
+   anything in this step prints a boolean.
+8. Add the `bin/01_struct_skeleton_python` launcher, `chmod +x` it.
+9. Add the per-project `.gitignore`, verify with `git status --ignored`.
+10. Port the README (carrying forward the same "don't implement `token_budget`
+    yet" note from the Decisions section above, so a future reader of the
+    Python README isn't confused when the code doesn't match the doc's
+    example output either).
+
+No further open questions — ready to implement.
