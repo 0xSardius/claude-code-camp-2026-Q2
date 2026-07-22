@@ -20,11 +20,6 @@ module Boukensha
           cost_per_million: { input: 3.0, output: 15.0 },
           usage_unit: :tokens
         },
-        "claude-sonnet-5" => {
-          context_window: 1_000_000,
-          cost_per_million: { input: 3.0, output: 15.0 },
-          usage_unit: :tokens
-        },
         "claude-opus-4-8" => {
           context_window: 1_000_000,
           cost_per_million: { input: 5.0, output: 25.0 },
@@ -37,12 +32,7 @@ module Boukensha
         configure_model(model)
       end
 
-      # system is unused here -- Anthropic sends it as a separate top-level
-      # payload field (see to_payload), not inline in the messages array.
-      # Still accepted so every backend has the same to_messages(system,
-      # messages) shape; PromptBuilder#to_messages delegates uniformly
-      # without needing to special-case which backends need it inline.
-      def to_messages(system, messages)
+      def to_messages(messages)
         messages.map do |msg|
           case msg.role
           when :tool_result
@@ -80,7 +70,7 @@ module Boukensha
           system: context.system,
           max_tokens: max_output_tokens,
           tools: to_tools(context.tools),
-          messages: to_messages(context.system, context.messages)
+          messages: to_messages(context.messages)
         }
       end
 

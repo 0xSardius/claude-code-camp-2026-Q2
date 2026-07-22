@@ -37,12 +37,7 @@ module Boukensha
         configure_model(model)
       end
 
-      # system is unused here -- Gemini sends it as a separate top-level
-      # systemInstruction field (see to_payload), not inline in contents.
-      # Still accepted so every backend has the same to_messages(system,
-      # messages) shape; PromptBuilder#to_messages delegates uniformly
-      # without needing to special-case which backends need it inline.
-      def to_messages(system, messages)
+      def to_messages(messages)
         messages.map do |msg|
           case msg.role
           when :assistant
@@ -84,7 +79,7 @@ module Boukensha
       def to_payload(context, max_output_tokens: 1024)
         {
           systemInstruction: { parts: [{ text: context.system }] },
-          contents: to_messages(context.system, context.messages),
+          contents: to_messages(context.messages),
           tools: to_tools(context.tools),
           generationConfig: { maxOutputTokens: max_output_tokens }
         }
