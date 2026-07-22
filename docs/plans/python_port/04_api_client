@@ -1,0 +1,421 @@
+# Python Port Plan — Step 04_api_client
+
+## Goal
+
+Port `week1_baseline/ruby/04_api_client` (the `Client` class — real HTTP
+POST to the active backend's API, with retry/backoff on transient failures
+and retryable status codes) to Python at
+`week1_baseline/python/04_api_client`. Same conventions as prior steps —
+see [`docs/plans/python_port/00_config`](00_config) for the full rationale;
+this doc covers what's new for this step.
+
+## Decisions carried forward (unchanged)
+
+| Question | Decision |
+|---|---|
+| Port fidelity | Literal mirror of the Ruby architecture |
+| Ruby vs Python | Run alongside each other; Ruby stays untouched *except* real bug fixes explicitly authorized |
+| Tooling | `uv` + `pyproject.toml` |
+| Python package name | `boukensha` |
+| Copy-forward | Byte-identical-Ruby-source files copied from the prior step's already-fixed Python file, not re-derived |
+| **No third-party HTTP library** | Ruby's `Client` deliberately uses only `net/http` (stdlib) — the README says explicitly "This is intentional — the HTTP call itself is trivial and should be visible, not hidden behind a library." The Python port uses `urllib.request` (stdlib), not `requests`, for the same reason. |
+
+## New for this step: a real behavior change to the acceptance test
+
+Every prior step's acceptance test was **byte-for-byte diff of Ruby vs.
+Python launcher output**. This step makes a real network call to a real
+LLM API — the response includes a fresh response ID and freshly-generated
+model text on every call, so a byte-diff of the full output is
+structurally impossible here, not just inconvenient. **Decided with the
+user (2026-07-22):**
+
+- **One live round-trip per language**, using a real `ANTHROPIC_API_KEY`
+  (already present in the repo root's gitignored `.env` — sourced directly
+  into the shell environment for the verification run, never copied into
+  any tracked file or printed). Confirms the client genuinely completes an
+  end-to-end call and prints a JSON response with the **same top-level key
+  shape** (not identical values — `id`, `type`, `role`, `content`,
+  `stop_reason`, `usage` etc.), not just that it doesn't crash.
+- **A deliberately-invalid-key run**, also live, for both languages. `401`
+  is not in `RETRYABLE_STATUS_CODES`, so it fails immediately (1 attempt,
+  no retries) with a real `ApiError` — this is a free, reproducible way to
+  verify the error-handling path against a real server response, without
+  spending real output tokens. The exact `ApiError` message *shape*
+  (`"API request failed after {n} attempt(s) ({code}): {body}"`) is
+  compared between languages, since the failure is deterministic (both hit
+  a real 401 immediately).
+- **Retry/backoff timing and the transient-error path are not
+  network-tested** (they'd need deliberately flaky infrastructure to
+  trigger for real, which is out of scope for a tutorial step) — verified
+  by direct code reading against the Ruby source line-by-line instead,
+  same rigor the code-review pass already applies to every step.
+
+Everything deterministic from prior steps — request payload construction,
+header building, backend model tables — was already parity-tested in
+`03_prompt_builder` and doesn't change here (`Client` just wraps
+`PromptBuilder`, it doesn't touch payload construction itself).
+
+## New for this step: fixing real Ruby bugs in flight
+
+Five issues found and fixed while planning this step:
+
+1. **`BOUKENSHA_DIR` off-by-one** in `examples/example.rb` — 6th occurrence
+   across 5 steps. Fixed the same way.
+2. **A new, different instance of the same bug class: `PROMPTS_DIR`
+   off-by-one** in `config.rb`. `File.expand_path("../../../prompts",
+   __dir__)` (3 `../`) resolves to `week1_baseline/ruby/prompts` — one
+   level too high; the real directory is
+   `week1_baseline/ruby/04_api_client/prompts`. Confirmed by direct
+   `File.expand_path` reproduction. Silent failure mode: since this step's
+   shared `settings.yaml` has `prompt_override.system: true`, the broken
+   `PROMPTS_DIR` fallback is never actually reached (the user-override path
+   resolves first) — but it would silently return `nil` for the system
+   prompt (not raise) if the override were ever off or the user file
+   missing, since `read_default_prompt` just checks `File.exist?` and
+   returns `nil` on a directory that doesn't exist. Fixed to 2 `../`,
+   matching `03_prompt_builder`'s already-correct math.
+3. **`Context#register_tool` had regressed again** — 4th occurrence across
+   4 steps now. Reapplied the same fix.
+4. **The `to_messages(system, messages)` fix from `03_prompt_builder` had
+   fully reverted** — `prompt_builder.rb`, `backends/anthropic.rb`, and
+   `backends/gemini.rb` are all back to the pre-fix 1-arg
+   `to_messages(messages)` shape, reproducing the exact `ArgumentError`
+   `03_prompt_builder` fixed for Ollama/OllamaCloud/OpenAI. Reapplied the
+   same standardization.
+5. **`claude-sonnet-5` missing from `Anthropic::MODELS` again** — also
+   reverted. Re-added.
+
+**Pattern worth flagging, not silently working around**: issues 3–5 are
+all *exact reversions* of fixes made one step ago, suggesting this step
+was built from a Ruby snapshot that predates those fixes rather than from
+`03_prompt_builder`'s already-fixed state. If the next step (`05_...`)
+shows the same pattern, it's worth raising directly rather than continuing
+to silently re-apply the same three fixes indefinitely.
+
+Two non-bug changes carried forward as-is (real improvements, not
+regressions):
+
+- **`Tasks::Base#fetch` gained a `settings.is_a?(Hash)` guard.** Previously
+  `fetch(nil, :provider)` would raise a confusing `NoMethodError`; now it
+  returns `nil`, letting `provider`/`model` raise their own clear "required
+  in settings.yaml" error instead. Ported to `tasks/base.py`'s `_fetch`
+  (updating the stale comment there that describes the old,
+  no-longer-accurate Ruby behavior — see file-by-file notes).
+- **Error message wording**: `"required in settings.yml"` →
+  `"...settings.yaml"` (cosmetic typo fix). Ported as-is.
+
+## Reference files (Ruby source of truth)
+
+| Ruby file | Role | Status vs. `03_prompt_builder` |
+|---|---|---|
+| `lib/boukensha.rb` | Top-level require | Drops the (redundant — `backends/anthropic.rb` etc. already `require_relative "base"`) explicit `backends/base` require; adds `client` |
+| `lib/boukensha/client.rb` | **New.** HTTP POST + retry/backoff + response parsing | New |
+| `lib/boukensha/errors.rb` | Adds `ApiError` | Otherwise identical |
+| `lib/boukensha/config.rb` | `PROMPTS_DIR` bug (see above) | Otherwise byte-identical to `03_prompt_builder`'s (diffed, confirmed) |
+| `lib/boukensha/context.rb` | `register_tool` regression (see above) | Byte-identical *after* reapplying the fix (diffed, confirmed — only comment text differs) |
+| `lib/boukensha/tasks/base.rb` | `is_a?(Hash)` guard + wording fix (see above) | Otherwise byte-identical to `03_prompt_builder`'s (diffed, confirmed) |
+| `lib/boukensha/prompt_builder.rb`, `backends/anthropic.rb`, `backends/gemini.rb` | `to_messages` arity regression (see above) | Byte-identical *after* reapplying the fix |
+| `lib/boukensha/backends/base.rb`, `ollama.rb`, `ollama_cloud.rb`, `openai.rb` | — | Byte-identical to `03_prompt_builder`'s (diffed, confirmed) |
+| `lib/boukensha/registry.rb`, `tool.rb`, `message.rb`, `tasks/player.rb` | — | Byte-identical to `03_prompt_builder`'s (diffed, confirmed) |
+| `prompts/system.md` | **Genuinely new content** (not a regression) — a shorter, more "autonomous agent"-flavored default prompt | New content |
+| `examples/example.rb` | Registers `read_file`/`list_directory` (real filesystem I/O, never dispatched in this step — no tool-calling loop yet, see README's own note that's step 5's job), sends one user message, builds a `Client`, prints the pretty-printed raw response | New |
+| `README.md` | Documents `Client`, retry/backoff behavior, response shapes per backend, the deliberate no-third-party-library decision | Has a stale "Output eaxmple" section from an apparently older/different codebase (different directory name `03_api_client`, different model name `claude-opus-4-5-20251101` not in any MODELS table) — not fixing this, same "don't unilaterally resolve an aspirational/stale README example" precedent as prior steps' README quirks, just noting it so it isn't mistaken for a missed divergence |
+
+## Target directory layout
+
+```
+week1_baseline/python/04_api_client/
+  pyproject.toml          # name = "boukensha", same deps as prior steps
+  uv.lock                 # committed
+  .python-version          # "3.14"
+  .gitignore                # __pycache__/, *.pyc
+  README.md                  # ported from the Ruby README
+  prompts/
+    system.md                 # carried forward verbatim (genuinely new content this step, not a regression)
+  boukensha/
+    __init__.py              # exports everything, including Client
+    config.py                 # carry forward from 03, PROMPTS_DIR hop math already correct there
+    errors.py                  # carry forward from 03, add ApiError
+    registry.py                 # carry forward from 03 (byte-identical Ruby source)
+    tasks/
+      __init__.py
+      base.py                   # carry forward from 03, add is_a?(Hash) guard + wording fix
+      player.py                  # carry forward from 03 (byte-identical Ruby source)
+    tool.py                       # carry forward from 03 (byte-identical Ruby source)
+    message.py                     # carry forward from 03 (byte-identical Ruby source)
+    context.py                      # carry forward from 03 (byte-identical Ruby source, already has both fixes)
+    prompt_builder.py                # carry forward from 03 (byte-identical Ruby source after reapplied fix)
+    client.py                         # NEW
+    backends/
+      __init__.py
+      base.py                          # carry forward from 03 (byte-identical Ruby source)
+      anthropic.py                      # carry forward from 03, add claude-sonnet-5 (reapplied fix)
+      gemini.py                          # carry forward from 03 (byte-identical Ruby source after reapplied fix)
+      ollama.py                           # carry forward from 03 (byte-identical Ruby source)
+      ollama_cloud.py                      # carry forward from 03 (byte-identical Ruby source)
+      openai.py                             # carry forward from 03 (byte-identical Ruby source)
+  examples/
+    example.py                             # ported from examples/example.rb
+```
+
+## File-by-file port notes
+
+### `errors.rb` → `errors.py`: add `ApiError`
+
+```python
+class UnknownToolError(Exception):
+    pass
+
+
+class ApiError(Exception):
+    pass
+
+
+class UnsupportedModelError(Exception):
+    pass
+```
+
+(Matching Ruby's declaration order in `errors.rb` — cosmetic, no behavior
+difference either way, but keeps a reader diffing the two files aligned.)
+
+### `tasks/base.rb` → `tasks/base.py`: `_fetch` guard + wording
+
+```python
+@classmethod
+def provider(cls, settings: dict) -> str:
+    value = cls._fetch(settings, "provider")
+    if value is None or value is False:
+        raise ValueError(f"tasks.{cls.task_name()}.provider is required in settings.yaml")
+    return value
+
+@classmethod
+def model(cls, settings: dict) -> str:
+    value = cls._fetch(settings, "model")
+    if value is None or value is False:
+        raise ValueError(f"tasks.{cls.task_name()}.model is required in settings.yaml")
+    return value
+
+# ...
+
+@classmethod
+def _fetch(cls, settings: dict, key: Any) -> Any:
+    # Ruby (04_api_client): `return nil unless settings.is_a?(Hash)` --
+    # guards against settings being None (e.g. config.tasks("nonexistent")
+    # resolves to None), so provider()/model() raise their own clear
+    # "required in settings.yaml" error instead of a confusing
+    # AttributeError from calling .get on None. Supersedes this method's
+    # previous docstring note (03_prompt_builder and earlier), which
+    # documented the OLD Ruby behavior (raising NoMethodError on a nil
+    # settings) as something deliberately mirrored -- that's no longer
+    # true of the Ruby source as of this step, so mirror the new behavior
+    # instead of the stale comment.
+    if not isinstance(settings, dict):
+        return None
+    return settings.get(str(key))
+```
+
+### `config.rb` → `config.py`: `PROMPTS_DIR` (bug fixed, math unchanged from `03`)
+
+No change needed to the Python file itself — `03_prompt_builder`'s
+`PROMPTS_DIR = str(Path(__file__).resolve().parent.parent / "prompts")`
+was already correct (1 `.parent.parent` hop, no `lib/` wrapper to account
+for). Carry forward as-is; the bug only existed on the Ruby side.
+
+### `client.rb` → `client.py`
+
+Ruby's `Net::HTTP#request` always returns a response object regardless of
+status code (2xx or otherwise) — the caller decides success/failure by
+inspecting `response.code` and `response.is_a?(Net::HTTPSuccess)`. Python's
+`urllib.request.urlopen` instead *raises* `urllib.error.HTTPError` for any
+non-2xx/3xx status. This isn't a fidelity gap: `HTTPError` is deliberately
+designed to double as a response object (`.code`, `.read()`, `.headers`),
+so catching it and treating it as "the response, just not a 2xx one" gets
+back to the same uniform shape Ruby has. Genuine connection-level failures
+(never got a response at all) raise `urllib.error.URLError` or a handful of
+socket/ssl-level exceptions — that's the Python-side equivalent of Ruby's
+`TRANSIENT_ERRORS` list.
+
+```python
+"""Port of week1_baseline/ruby/04_api_client/lib/boukensha/client.rb."""
+import json
+import ssl
+import time
+import urllib.error
+import urllib.request
+
+from .errors import ApiError
+
+
+class Client:
+    RETRYABLE_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
+
+    # Ruby's TRANSIENT_ERRORS is connection/protocol-level failures that
+    # never produced an HTTP response at all (EOFError, ECONNRESET,
+    # ECONNREFUSED, open/read timeouts, SSL errors, SocketError,
+    # Timeout::Error) -- deliberately NOT overlapping with HTTPError below,
+    # which represents a real (if unsuccessful) response.
+    TRANSIENT_ERRORS = (
+        EOFError,
+        ConnectionResetError,
+        ConnectionRefusedError,
+        TimeoutError,
+        ssl.SSLError,
+        urllib.error.URLError,
+    )
+    MAX_RETRIES = 3
+    BASE_RETRY_DELAY = 0.5
+
+    def __init__(self, builder):
+        self._builder = builder
+
+    def call(self, *, max_output_tokens=1024):
+        url = self._builder.url()
+        body = json.dumps(self._builder.to_api_payload(max_output_tokens=max_output_tokens)).encode("utf-8")
+        request = urllib.request.Request(url, data=body, headers=self._builder.headers(), method="POST")
+
+        attempts = 0
+        response = None
+
+        while True:
+            attempts += 1
+            try:
+                response = urllib.request.urlopen(request)
+            except urllib.error.HTTPError as e:
+                # HTTPError IS usable as a response object -- keeps this
+                # branch and the success path converging on one uniform
+                # "response" shape below, same as Ruby's Net::HTTP.
+                response = e
+            except self.TRANSIENT_ERRORS as e:
+                if attempts > self.MAX_RETRIES:
+                    raise ApiError(
+                        f"API request failed after {attempts} attempts: {type(e).__name__}: {e}"
+                    )
+                time.sleep(self._retry_delay(attempts))
+                continue
+
+            if self._retryable_response(response) and attempts <= self.MAX_RETRIES:
+                response.close()
+                time.sleep(self._retry_delay(attempts))
+                continue
+
+            break
+
+        if not (200 <= response.code < 300):
+            suffix = "" if attempts == 1 else "s"
+            raise ApiError(
+                f"API request failed after {attempts} attempt{suffix} "
+                f"({response.code}): {response.read().decode('utf-8')}"
+            )
+
+        return json.loads(response.read())
+
+    def _retryable_response(self, response):
+        return response.code in self.RETRYABLE_STATUS_CODES
+
+    def _retry_delay(self, attempt):
+        return self.BASE_RETRY_DELAY * (2 ** (attempt - 1))
+```
+
+Retry-count semantics verified to match Ruby's exactly (traced by hand):
+with `MAX_RETRIES = 3`, both the transient-error path (`attempts >
+MAX_RETRIES` guards the raise) and the retryable-response path (`attempts
+<= MAX_RETRIES` guards the retry) allow exactly 3 retries after the
+initial attempt — 4 total attempts before giving up either way, despite
+the asymmetric-looking comparison operators (an artifact of *what* each
+condition guards — raising vs. retrying — not a different retry count).
+
+`response.close()` before discarding a still-retryable response is a small
+Python-idiomatic addition Ruby doesn't need (Net::HTTP's single-request
+`http.request(...)` call doesn't leave an open connection the way an
+unread `urllib` response does) — doesn't change any observable behavior,
+just avoids a `ResourceWarning`.
+
+Ruby's `http.verify_mode = OpenSSL::SSL::VERIFY_PEER` (and the commented-out
+`ca_file` line, left disabled for Linux/WSL2 compatibility per the Ruby
+README) has no Python counterpart to write: `urlopen`'s default SSL context
+already verifies peer certificates against the system CA store out of the
+box. Same for `http.use_ssl = uri.scheme == "https"` — `urlopen` picks
+HTTP vs. HTTPS from the URL scheme automatically. Not fidelity gaps, just
+more of "not every Ruby line needs a Python counterpart" (already
+documented in the root `CLAUDE.md` gotchas from `02_the_registry`).
+
+`e.class` in Ruby's transient-error message → `type(e).__name__` in Python:
+same "bare name, not fully-qualified" choice already made for
+`UnsupportedModelError` in `backends/base.py` (`03_prompt_builder`) — this
+message isn't parity-tested either (see the acceptance-test section above:
+transient errors aren't network-testable here).
+
+### `boukensha.rb` → `boukensha/__init__.py`
+
+Adds `Client` and `ApiError` to the existing 03 export list.
+
+### `examples/example.rb` → `examples/example.py`
+
+Port 1:1: register `read_file` (`Path(path).read_text()`) and
+`list_directory` (`os.listdir` already excludes `.`/`..`, so the filter
+only needs to drop remaining dotfiles: `[f for f in os.listdir(path) if
+not f.startswith(".")]`) — neither tool is actually dispatched in this
+step's example (no tool-calling loop yet), so their `block`s never execute
+during a normal run, but port them faithfully in case of manual testing.
+Send the single user message, resolve the backend the same way as `03`'s
+example, build `PromptBuilder` then `Client`, call it, and print the raw
+JSON response — reuse `03`'s `ruby_pretty_json` helper for the print (kept
+for output-style consistency even though the actual response content is
+non-deterministic and isn't byte-diffed for this step).
+
+## New bin launchers
+
+```bash
+#!/usr/bin/env bash
+
+cd "$(dirname "$0")/../ruby/04_api_client"
+bundle exec ruby examples/example.rb
+```
+
+```bash
+#!/usr/bin/env bash
+cd "$(dirname "$0")/../python/04_api_client"
+uv run python examples/example.py
+```
+
+Both need `ANTHROPIC_API_KEY` (or whichever provider's key) in the
+environment to run for real — sourced from the repo root's gitignored
+`.env` for the live-verification runs (see the acceptance-test section
+above), not baked into the launcher scripts themselves (Ruby's `Config`
+only ever reads `.boukensha/.env` — no new config-loading precedence is
+being invented here).
+
+## `.gitignore`
+
+Same as prior steps: per-project
+`week1_baseline/python/04_api_client/.gitignore` with `__pycache__/`/`*.pyc`.
+
+## Milestones / execution order
+
+1. Scaffold `week1_baseline/python/04_api_client/` (`pyproject.toml`,
+   `.python-version`, placeholder `README.md` + package `__init__.py`
+   stubs, `uv sync`).
+2. Copy forward `config.py`, `errors.py` (then add `ApiError`),
+   `registry.py`, `tasks/base.py` (then add the `is_a?` guard + wording
+   fix), `tasks/player.py`, `tool.py`, `message.py`, `context.py`,
+   `prompt_builder.py`, `backends/{base,anthropic,gemini,ollama,
+   ollama_cloud,openai}.py` from `03_prompt_builder` (Ruby sources
+   re-diffed above).
+3. Copy forward `prompts/system.md` verbatim (new content this step, not a
+   regression — still a pure copy once the Ruby file is in place).
+4. Port `client.py`.
+5. Update `boukensha/__init__.py` to export `Client`, `ApiError`.
+6. Port `examples/example.py`.
+7. **Live verification** (per the acceptance-test section above): one real
+   successful round-trip per language (same JSON response key shape), plus
+   one deliberately-invalid-key round-trip per language (same `ApiError`
+   message shape). Not a byte-diff of full launcher output like prior
+   steps — this step's launchers are expected to differ in exact response
+   content every run, by design.
+8. Add the `bin/04_api_client`/`bin/04_api_client_python` launchers,
+   `chmod +x` both.
+9. Add the per-project `.gitignore`, verify with `git status --ignored`.
+10. Port the README.
+11. Run the `code-review` skill against the diff before calling it done.
+
+No open questions — ready to implement.

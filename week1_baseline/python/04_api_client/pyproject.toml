@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "boukensha"
+version = "0.1.0"
+description = "Python port of the Boukensha API client (week1_baseline step 04_api_client) -- see docs/plans/python_port/04_api_client"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0.2",
+]
