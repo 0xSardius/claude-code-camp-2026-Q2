@@ -69,9 +69,10 @@ UnknownToolError caught: No tool registered as 'flee'
 `dispatch` converts string keys to symbol keys before calling the block. 
 The API returns arguments as string-keyed JSON but Ruby blocks expect symbols. 
 This translation is a real gotcha in production harnesses, BOUKENSHA makes it visible for learning purposes
+We now register tools with the Registry but our code still has direct registration and tool in context. This likely should have been removed. The question is does future implementation not use it and it should have been omitted.
 
 ## Run Example
 
 ```sh
-./week1_baseline/bin/01_the_registry 
+./week1_baseline/bin/02_the_registry 
 ```

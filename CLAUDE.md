@@ -23,8 +23,8 @@ week0_explore/     -- "explore" phase: compare agent architectures head-to-head
     03_subagent_sdk/           -- Claude Agent SDK, concurrent character agents
     04_n8n/                     -- not started yet (empty)
 week1_baseline/     -- "baseline" phase: hand-rolled agent loop, NO SDK
-  ruby/00_config, ruby/01_struct_skeleton, ...   -- source of truth, one dir per step
-  python/00_config, python/01_struct_skeleton, ...  -- literal port, runs alongside Ruby
+  ruby/00_config, ruby/01_struct_skeleton, ruby/02_the_registry, ...   -- source of truth, one dir per step
+  python/00_config, python/01_struct_skeleton, (02_the_registry next)  -- literal port, runs alongside Ruby
   bin/00_config, bin/00_config_python, ...         -- launchers, one Ruby + one Python per step
 week2_capable/       -- not started yet (empty)
 docs/
@@ -59,7 +59,14 @@ reasoning:
 - **Ruby is the source of truth.** Python is a literal architectural mirror
   (same classes, same method names, same `__repr__`/`to_s` output down to
   the byte), not an idiomatic rewrite. **Ruby and Python run alongside each
-  other** — porting a step never touches the Ruby original.
+  other** — porting a step never touches the Ruby original, **except**:
+  genuine bugs found in the Ruby source while planning/porting get fixed in
+  Ruby too (explicitly authorized 2026-07-21, `02_the_registry`) — a
+  literal mirror of a bug isn't the goal, a literal mirror of correct
+  behavior is. Fix clear bugs; don't unilaterally resolve things the Ruby
+  source itself frames as an open question (e.g. a README's own
+  "Considerations" section asking "should this have been removed") —
+  those stay open until a human decides.
 - **Each numbered step is independently ported from its own Ruby sibling**,
   not from the previous Python step. The Ruby side itself duplicates code
   per step rather than sharing a lib — confirmed by diffing steps against
@@ -67,6 +74,13 @@ reasoning:
   `00_config`'s has, because that step doesn't need it). Don't assume a
   new Python step's file is identical to the previous step's just because
   it looks similar — re-read the actual Ruby source every time.
+  **Narrow exception (added 2026-07-22, `02_the_registry`):** if that fresh
+  re-read confirms a file's Ruby source is byte-identical to a prior step's,
+  it's fine to copy the *prior step's already-ported Python file* forward
+  instead of re-deriving from Ruby — re-deriving risks silently losing a
+  Python-side fix (falsy-`or`, `None`-to-string, slice-width, etc.) that
+  file already has. The rule's real intent is "verify, don't assume" — the
+  diff *is* the verification step, not something to skip.
 - **The acceptance test for a ported step is a byte-for-byte diff** between
   `bin/<step>` (Ruby) and `bin/<step>_python` (Python) against the same
   `.boukensha/settings.yaml`. Not "it runs" — the printed output must match
@@ -87,8 +101,10 @@ reasoning:
 - **`BOUKENSHA_DIR` path math**: `examples/example.rb`/`.py` need exactly
   **4** `../`/`.parent` hops from the `examples/` dir to reach the repo
   root (`ruby/<step>/examples/` → `ruby/<step>/` → `ruby/` →
-  `week1_baseline/` → repo root). Every step so far shipped with this off
-  by one at first (3 instead of 4) — check it explicitly on new steps.
+  `week1_baseline/` → repo root). Every Ruby step so far has shipped with
+  this off by one at first (3 instead of 4) — `00_config`, `01_struct_skeleton`,
+  and `02_the_registry` all needed the same one-line fix. **Check this
+  first, before reading anything else, on every new step.**
 - **Ruby `||` vs Python `or`**: Ruby's `||` only falls back on `nil`/`false`;
   Python's `or` falls back on *any* falsy value (`0`, `""`, `[]`, `{}`).
   A direct `x || default` → `x or default` translation is wrong whenever
@@ -123,6 +139,53 @@ reasoning:
 - **`uv sync` needs a real `README.md` and non-empty package dir before it
   will build** — scaffold those (even as placeholders) before the first
   `uv sync`, not after.
+- **Dict/hash keys need normalizing at the point of storage, not just at
+  one call site.** `Context#register_tool` stored `tool.name` as-is; when
+  `02_the_registry` added a `Registry` that always normalizes to a string
+  before registering, the *old*, still-public `register_tool` method
+  became a bypass — a `Tool` built with a symbol name and registered
+  directly would silently land under a different key type, making it
+  permanently undispatchable even though `tool_count` said it existed.
+  Fixed by normalizing inside `register_tool` itself (`tool.name.to_s`),
+  not by trusting every caller to normalize first. Same principle applies
+  in Python (`str(tool.name)`) even though it's lower-risk there (no
+  symbol/string duality) — backported to `01_struct_skeleton` for
+  consistency. General lesson: if two code paths can both reach a shared
+  mutable structure, normalize at the structure's own boundary, not at
+  each caller.
+- **Ruby's symbol/string keyword-argument gap has no Python equivalent —
+  don't manufacture one.** `02_the_registry`'s whole teaching point is that
+  Ruby blocks need symbol-keyed args (`|direction:|`) while incoming data
+  is string-keyed JSON, so `dispatch` does `args.transform_keys(&:to_sym)`.
+  Python's `**kwargs` unpacking is already string-keyed — there's nothing
+  to translate, so the ported `dispatch` is legitimately shorter. Don't add
+  a no-op step just to have "something" mirroring that line; document
+  *why* it's shorter instead. (General version of this: not every Ruby
+  line needs a Python counterpart — some Ruby-specific problems just don't
+  exist on the other side.)
+- **A fix can reintroduce the exact gotcha it was inspired by.** The
+  `register_tool` string-normalization fix (above) used bare `str(tool.name)`
+  in Python — which hits the `nil.to_s`-vs-`str(None)` gotcha (already
+  documented above it in this same list) on a `None`-named `Tool`. Ruby's
+  `tool.name.to_s` didn't need an equivalent guard (`nil.to_s` is already
+  `""`), so the asymmetry was easy to miss porting Ruby → Python. Caught by
+  a code-review pass, not the parity test (both steps' example output never
+  exercises a `None`-named tool) — fixed with the same `"" if x is None
+  else str(x)` guard as everywhere else. Lesson: when fixing one gotcha,
+  check whether the fix's own code touches ground already covered by a
+  *different* documented gotcha.
+- **Normalizing a key can turn "coexists under two keys" into "silently
+  overwrites."** Before the `register_tool` fix, a symbol-named and a
+  string-named `Tool` with the same underlying name landed under two
+  distinct hash/dict keys (one of them permanently undispatchable, but
+  still present in `tool_count`/`tools`). After the fix they collide onto
+  one key and the second registration silently wins — no duplicate-name
+  guard exists. Confirmed and **left as-is on purpose** (2026-07-22): plain
+  hash/dict last-write-wins is normal semantics, and `register_tool`'s
+  public-API duplication is already an open question the Ruby README's own
+  "Considerations" section raises ("should this have been removed") — adding
+  duplicate-detection now would be resolving that open question
+  unilaterally, which this project's conventions say not to do.
 
 ## week0_explore: architecture comparison findings
 

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+cd "$(dirname "$0")/../python/02_the_registry"
+uv run python examples/example.py

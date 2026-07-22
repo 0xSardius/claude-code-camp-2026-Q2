@@ -13,7 +13,17 @@ module Boukensha
     end
 
     def register_tool(tool)
-      @tools[tool.name] = tool
+      # Normalize to a string key regardless of caller. Registry#tool always
+      # passes a string (name.to_s), but register_tool is still public and
+      # callable directly (see this step's README Considerations) -- a Tool
+      # built with a symbol name (e.g. Tool.new(:look, ...)) registered that
+      # way would otherwise land in @tools under a symbol key, silently
+      # breaking Registry#dispatch's string-keyed lookup for that tool even
+      # though tool_count reports it as present. Found + fixed 2026-07-21
+      # while planning the Python port -- confirmed reproducible before this
+      # fix (mixed ["move", :look] keys, dispatch("look") raising
+      # UnknownToolError despite the tool existing).
+      @tools[tool.name.to_s] = tool
     end
 
     def add_message(role, content, tool_use_id: nil)

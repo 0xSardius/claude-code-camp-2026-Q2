@@ -1,0 +1,263 @@
+# Python Port Plan — Step 02_the_registry
+
+## Goal
+
+Port `week1_baseline/ruby/02_the_registry` (the `Registry` class + a first
+`UnknownToolError`) to Python at `week1_baseline/python/02_the_registry`.
+Same conventions as `00_config`/`01_struct_skeleton` — see
+[`docs/plans/python_port/00_config`](00_config) for the full rationale;
+this doc covers what's new for this step.
+
+## Decisions carried forward (unchanged)
+
+| Question | Decision |
+|---|---|
+| Port fidelity | Literal mirror of the Ruby architecture |
+| Ruby vs Python | Run alongside each other; Ruby stays untouched *except* real bug fixes explicitly authorized (see below) |
+| Tooling | `uv` + `pyproject.toml` |
+| Testing | Smoke test only (port `examples/example.rb` → `examples/example.py`) |
+| Python package name | `boukensha` |
+
+## New for this step: fixing real Ruby bugs in flight
+
+The user explicitly authorized fixing genuine errors found in the Ruby
+source while planning/porting this step (a deliberate, one-off exception to
+"Ruby stays untouched" — confirmed 2026-07-21). Two were found and fixed
+before this plan was written:
+
+1. **`README.md`'s "Run Example" said `bin/01_the_registry`** (copy-paste
+   from the previous step) — fixed to `bin/02_the_registry`.
+2. **`Context#register_tool` didn't normalize the tool name to a string** —
+   `@tools[tool.name] = tool`. Since `Registry#tool` always passes
+   `name.to_s`, tools registered *through* the Registry were fine, but
+   `register_tool` is still public and directly callable (the README's own
+   "Considerations" section flags this as an open question — "should this
+   have been removed"). Confirmed reproducible before the fix: registering
+   a `Tool.new(:look, ...)` directly on `Context` (bypassing the Registry)
+   landed it under a **symbol** key while `Registry#dispatch` looks up
+   **string** keys — `ctx.tools.keys` showed `["move", :look]`, and
+   `dispatch("look")` raised `UnknownToolError` even though `tool_count`
+   reported the tool as present. Fixed by normalizing in `register_tool`
+   itself (`@tools[tool.name.to_s] = tool`) — minimal, doesn't resolve the
+   README's open "should register_tool be removed from the public API"
+   question (left alone, still open), just closes the type-consistency bug.
+   **Backported to `01_struct_skeleton`** (Ruby + Python) too, per user
+   confirmation — same bug, currently unreachable there (no Registry
+   exists in that step to trigger the bypass), but latent and cheap to fix
+   for consistency rather than leaving a landmine for whenever that step
+   grows a Registry of its own. Verified both steps' parity/output
+   unchanged after the backport.
+
+**The README's "Considerations" section is the model for how to handle
+open questions found in the Ruby source**: it explicitly flags the
+register_tool duplication as an unresolved design question ("does future
+implementation not use it and it should have been omitted") rather than
+asserting a fix. Treat any other ambiguous/underspecified thing found the
+same way — fix clear bugs, but don't unilaterally resolve things the
+source material itself frames as still open.
+
+## New finding: the `transform_keys(&:to_sym)` gotcha has no Python equivalent
+
+This step's whole pedagogical point, per its own README: *"dispatch
+converts string keys to symbol keys before calling the block. The API
+returns arguments as string-keyed JSON but Ruby blocks expect symbols.
+This translation is a real gotcha in production harnesses."*
+
+`Registry#dispatch` does `tool.block.call(**args.transform_keys(&:to_sym))`
+specifically because Ruby keyword-argument blocks (`|direction:|`) require
+**symbol** keys, while incoming args are naturally **string**-keyed (JSON).
+
+Python has no symbol type — `**kwargs` unpacking is inherently string-keyed
+already, so `tool.block(**args)` with a plain string-keyed dict just works
+against a Python function/lambda with keyword params. **There is nothing to
+translate.** Don't add a no-op "key transformation" step just to have
+*something* mirroring that line — that would be manufacturing complexity
+to simulate a problem Python doesn't have, which cuts against the
+project's own "don't add code that isn't needed" principle. Instead: the
+Python `dispatch` is simply `tool.block(**(args or {}))`, and the port's
+docstring should explain *why* the line is shorter, not just that it is —
+so a future reader doesn't think something was missed.
+
+## Reference files (Ruby source of truth)
+
+| Ruby file | Lines | Role |
+|---|---|---|
+| [`.../02_the_registry/lib/boukensha.rb`](../../../week1_baseline/ruby/02_the_registry/lib/boukensha.rb) | 7 | Top-level require, now also pulls in `errors`, `registry` |
+| [`.../02_the_registry/lib/boukensha/registry.rb`](../../../week1_baseline/ruby/02_the_registry/lib/boukensha/registry.rb) | 21 | **New.** `Registry#tool` (register) and `#dispatch` (look up + call) |
+| [`.../02_the_registry/lib/boukensha/errors.rb`](../../../week1_baseline/ruby/02_the_registry/lib/boukensha/errors.rb) | 3 | **New.** `UnknownToolError < StandardError` |
+| [`.../02_the_registry/lib/boukensha/context.rb`](../../../week1_baseline/ruby/02_the_registry/lib/boukensha/context.rb) | ~35 | Same as `01_struct_skeleton`'s **plus the register_tool string-normalization fix** (see above) |
+| [`.../02_the_registry/lib/boukensha/config.rb`](../../../week1_baseline/ruby/02_the_registry/lib/boukensha/config.rb) | 91 | Byte-identical to `01_struct_skeleton`'s (diffed, confirmed) |
+| [`.../02_the_registry/lib/boukensha/tasks/base.rb`](../../../week1_baseline/ruby/02_the_registry/lib/boukensha/tasks/base.rb) | 60 | Byte-identical to `01_struct_skeleton`'s (diffed, confirmed) |
+| [`.../02_the_registry/lib/boukensha/tasks/player.rb`](../../../week1_baseline/ruby/02_the_registry/lib/boukensha/tasks/player.rb) | 9 | Byte-identical to `01_struct_skeleton`'s (diffed, confirmed) |
+| [`.../02_the_registry/lib/boukensha/tool.rb`](../../../week1_baseline/ruby/02_the_registry/lib/boukensha/tool.rb) | 7 | Byte-identical to `01_struct_skeleton`'s (diffed, confirmed) |
+| [`.../02_the_registry/lib/boukensha/message.rb`](../../../week1_baseline/ruby/02_the_registry/lib/boukensha/message.rb) | 8 | Byte-identical to `01_struct_skeleton`'s (diffed, confirmed) |
+| [`.../02_the_registry/examples/example.rb`](../../../week1_baseline/ruby/02_the_registry/examples/example.rb) | 58 | Registers `move`+`shout` via the Registry, dispatches both plus an intentional `flee` failure |
+| [`.../02_the_registry/README.md`](../../../week1_baseline/ruby/02_the_registry/README.md) | — | **Same recurring pattern as before**: expected-output example shows `#<Context turns=0 tools=2 budget=8192>` (a `budget=` field and no `task=`) — the actual `context.rb` still has neither `token_budget` nor an omitted `task`. Port the real code, not this aspirational line, same call as `01_struct_skeleton`'s equivalent README mismatch. |
+| [`week1_baseline/bin/02_the_registry`](../../../week1_baseline/bin/02_the_registry) | 4 | Bash launcher, added 2026-07-21 (didn't exist yet) — used the correct 4-`../` `BOUKENSHA_DIR` math from the start, but `examples/example.rb` itself still shipped with the usual 3-`../` bug (found + fixed, see Reference files note below). |
+
+**The `BOUKENSHA_DIR` off-by-one bug hit again** — `examples/example.rb`
+had the same 3-`../`-instead-of-4 bug every prior step shipped with
+(documented in the root `CLAUDE.md` gotchas list). Fixed the same way.
+Fourth occurrence of this exact bug across 3 steps — worth checking first
+thing on any future step before even reading the rest of it.
+
+## Target directory layout
+
+```
+week1_baseline/python/02_the_registry/
+  pyproject.toml          # name = "boukensha", same deps as prior steps
+  uv.lock                 # committed
+  .python-version          # "3.14"
+  .gitignore                # __pycache__/, *.pyc
+  README.md                  # ported from the Ruby README
+  boukensha/
+    __init__.py              # exports Config, Base, Player, Tool, Message, Context, Registry, UnknownToolError
+    config.py                 # carry forward from 01 (byte-identical Ruby source)
+    errors.py                  # NEW: UnknownToolError
+    registry.py                 # NEW: Registry
+    tasks/
+      __init__.py
+      base.py                   # carry forward from 01 (byte-identical Ruby source)
+      player.py                  # carry forward from 01 (byte-identical Ruby source)
+    tool.py                       # carry forward from 01 (byte-identical Ruby source)
+    message.py                     # carry forward from 01 (byte-identical Ruby source)
+    context.py                      # carry forward from 01 -- already has the register_tool fix
+                                     # applied during this step's planning, nothing further needed
+  examples/
+    example.py                       # ported from examples/example.rb
+```
+
+**"Carry forward from 01" means copy `python/01_struct_skeleton`'s
+already-fixed files, not re-derive fresh from Ruby.** The Ruby sources are
+byte-identical (diffed and confirmed above), but the *Python* files in `01`
+already diverge correctly from a naive line-for-line translation in ways
+this project has already paid for once (required-vs-optional `task`
+kwarg, `or`-vs-`is None` falsy handling, `None`→`""` rendering, the
+slice-width and symbol-key-repr fixes). Re-deriving from Ruby fresh risks
+silently reintroducing bugs already found and fixed. Still re-diff the
+Ruby sources first (done above) to make sure "byte-identical" actually
+holds before trusting the copy-forward — same discipline as `01`'s plan.
+
+## File-by-file port notes
+
+### `errors.rb` → `errors.py`
+
+```python
+class UnknownToolError(Exception):
+    pass
+```
+
+Ruby's `UnknownToolError < StandardError` → Python's builtin `Exception`
+is the natural base (no existing Boukensha error hierarchy to hook into;
+`StandardError` is just "the normal exception base" in Ruby, `Exception` is
+Python's rough equivalent for user-raised errors).
+
+### `registry.rb` → `registry.py`
+
+```python
+from .errors import UnknownToolError
+from .tool import Tool
+
+
+class Registry:
+    def __init__(self, context):
+        self._context = context
+
+    def tool(self, name, *, description, parameters=None, block):
+        # Ruby: parameters: {} default -- Python can't default a mutable
+        # dict directly (shared-across-calls footgun), so default None and
+        # substitute {} per call instead.
+        t = Tool(str(name), description, parameters or {}, block)
+        self._context.register_tool(t)
+        return t
+
+    def dispatch(self, name, args=None):
+        # No transform_keys equivalent -- **dict unpacking in Python is
+        # already string-keyed, there's no symbol/string gap to bridge
+        # here. See the port plan's "New finding" section for why this is
+        # shorter than the Ruby version on purpose, not by omission.
+        tool = self._context.tools.get(str(name))
+        if tool is None:
+            raise UnknownToolError(f"No tool registered as '{name}'")
+        return tool.block(**(args or {}))
+```
+
+Ruby's `tool(name, description:, parameters: {}, &block)` takes the block
+implicitly via `&block`; Python has no implicit trailing-block syntax, so
+`block` is an explicit keyword-only parameter here — callers pass a
+lambda/function directly (`registry.tool("move", description=..., parameters=..., block=lambda *, direction: ...)`).
+This is the one place the Python call *shape* necessarily differs from
+Ruby's (Python has no `do...end`/`{ }` block-literal equivalent to a
+trailing argument) — not a fidelity gap, just how Python spells "pass a
+callable."
+
+### `context.rb` → `context.py`
+
+Already fully ported and fixed as part of `01_struct_skeleton` (including
+the register_tool normalization fix applied during this step's planning).
+Carry forward as-is — see the Reference files table, byte-identical Ruby
+source confirmed via diff.
+
+### `config.rb`, `tasks/base.rb`, `tasks/player.rb`, `tool.rb`, `message.rb`
+
+All byte-identical Ruby sources to `01_struct_skeleton` (diffed, confirmed
+above) → carry forward the already-ported, already-fixed Python files
+unchanged.
+
+### `boukensha.rb` → `boukensha/__init__.py`
+
+Now aggregates eight things: `Config`, `Base`, `Player`, `Tool`, `Message`,
+`Context`, `Registry`, `UnknownToolError`.
+
+### `examples/example.rb` → `examples/example.py`
+
+Port 1:1: build `Config`/`Context`/`Registry`, register `move` and `shout`
+tools through the registry (not `ctx.register_tool` directly — matches the
+Ruby example's own comment about why it goes through the Registry now),
+print config/context/tools, dispatch `shout` and `move` successfully,
+dispatch `flee` and catch `UnknownToolError`. Get the `BOUKENSHA_DIR`
+4-`../`-equivalent path math right from the start (see the recurring bug
+note above).
+
+## New bin launcher
+
+`week1_baseline/bin/02_the_registry` (Ruby, already created this session)
+stays as-is. Add `week1_baseline/bin/02_the_registry_python`:
+
+```bash
+#!/usr/bin/env bash
+cd "$(dirname "$0")/../python/02_the_registry"
+uv run python examples/example.py
+```
+
+## `.gitignore`
+
+Same as prior steps: per-project `week1_baseline/python/02_the_registry/.gitignore`
+with `__pycache__/`/`*.pyc`; `.venv/` self-ignores via `uv`; `uv.lock`
+committed. Root patterns already cover the Ruby side (confirmed via
+`git status --ignored` after adding `bin/02_the_registry` — no changes
+needed there).
+
+## Milestones / execution order
+
+1. Scaffold `week1_baseline/python/02_the_registry/` (`pyproject.toml`,
+   `.python-version`, placeholder `README.md` + package `__init__.py`
+   stubs, `uv sync`).
+2. Copy forward `config.py`, `tasks/base.py`, `tasks/player.py`, `tool.py`,
+   `message.py`, `context.py` from `01_struct_skeleton` (after re-diffing
+   Ruby sources, done above — should be a pure copy, no edits needed).
+3. Port `errors.py`.
+4. Port `registry.py`.
+5. Update `boukensha/__init__.py` to export the two new names.
+6. Port `examples/example.py`.
+7. **Run both launchers back to back against the same `.boukensha/settings.yaml`
+   and diff the output** — same acceptance bar as prior steps.
+8. Add the `bin/02_the_registry_python` launcher, `chmod +x` it.
+9. Add the per-project `.gitignore`, verify with `git status --ignored`.
+10. Port the README (carrying forward the same "code, not the aspirational
+    budget/task README example" note).
+11. Run the `code-review` skill against the diff before calling it done —
+    caught 4 real bugs last time that parity alone didn't; worth repeating
+    every step, not just when something feels uncertain.
+
+No open questions — ready to implement.
