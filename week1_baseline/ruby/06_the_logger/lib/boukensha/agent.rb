@@ -120,12 +120,19 @@ module Boukensha
         use_id = block["id"]
 
         @logger.tool_call(name: name, args: args)
+        # begin/rescue/else, not a single begin/rescue -- the success-path
+        # logger call must NOT be covered by the rescue, or a logging
+        # failure (e.g. disk I/O writing the session log) after a
+        # genuinely successful dispatch gets misreported to the model as a
+        # tool failure, discarding the real result. Found while porting to
+        # Python (2026-07-23) -- fixed here too, not just in the port.
         begin
           result = @registry.dispatch(name, args)
-          @logger.tool_result(name: name, result: result, ok: true)
         rescue StandardError => e
           result = "ERROR: #{e.class}: #{e.message}"
           @logger.tool_result(name: name, result: result, ok: false, error: e.message)
+        else
+          @logger.tool_result(name: name, result: result, ok: true)
         end
 
         @context.add_message(:tool_result, result.to_s, tool_use_id: use_id)
