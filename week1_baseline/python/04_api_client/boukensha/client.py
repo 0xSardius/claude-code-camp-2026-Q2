@@ -2,15 +2,23 @@
 
 Ruby's Net::HTTP#request always returns a response object regardless of
 status code (2xx or otherwise) -- the caller decides success/failure by
-inspecting response.code and response.is_a?(Net::HTTPSuccess). Python's
-urllib.request.urlopen instead *raises* urllib.error.HTTPError for any
-non-2xx/3xx status. This isn't a fidelity gap: HTTPError is deliberately
-designed to double as a response object (.code, .read(), .headers), so
-catching it and treating it as "the response, just not a 2xx one" gets
-back to the same uniform shape Ruby has. Genuine connection-level failures
-(never got a response at all) raise urllib.error.URLError or a handful of
-socket/ssl-level exceptions -- the Python-side equivalent of Ruby's
-TRANSIENT_ERRORS list.
+inspecting response.code and response.is_a?(Net::HTTPSuccess). It also
+reads status, headers, AND body as one atomic call, all inside the single
+begin/rescue that catches transient failures.
+
+Python's urllib.request.urlopen instead *raises* urllib.error.HTTPError for
+any non-2xx/3xx status, and separates "get the response" from "read the
+body" into two steps. This isn't a fidelity gap: HTTPError is deliberately
+designed to double as a response object (.code, .read(), .close()), so
+catching it and treating it as "the response, just not a 2xx one" gets back
+to the same uniform shape Ruby has -- but status AND body must both be
+pulled out inside the same try/except that catches TRANSIENT_ERRORS (not
+after it), or a connection reset mid-body-read would escape unretried and
+unwrapped, unlike Ruby's atomic read. The response is also explicitly
+closed on every path (success, terminal error, and before each retry) via
+`finally` -- Ruby's Net::HTTP doesn't need this because a one-off
+`http.request(...)` call closes its connection when it returns; an
+unclosed urllib response leaks the underlying socket.
 """
 import json
 import ssl
@@ -49,17 +57,23 @@ class Client:
         request = urllib.request.Request(url, data=body, headers=self._builder.headers(), method="POST")
 
         attempts = 0
-        response = None
+        status = None
+        response_body = None
 
         while True:
             attempts += 1
+            response = None
             try:
                 response = urllib.request.urlopen(request)
+                status = response.code
+                response_body = response.read()
             except urllib.error.HTTPError as e:
                 # HTTPError IS usable as a response object -- keeps this
                 # branch and the success path converging on one uniform
-                # "response" shape below, same as Ruby's Net::HTTP.
+                # "status + body" shape below, same as Ruby's Net::HTTP.
                 response = e
+                status = e.code
+                response_body = e.read()
             except self.TRANSIENT_ERRORS as e:
                 if attempts > self.MAX_RETRIES:
                     raise ApiError(
@@ -67,25 +81,27 @@ class Client:
                     )
                 time.sleep(self._retry_delay(attempts))
                 continue
+            finally:
+                if response is not None:
+                    response.close()
 
-            if self._retryable_response(response) and attempts <= self.MAX_RETRIES:
-                response.close()
+            if self._is_retryable_status(status) and attempts <= self.MAX_RETRIES:
                 time.sleep(self._retry_delay(attempts))
                 continue
 
             break
 
-        if not (200 <= response.code < 300):
+        if not (200 <= status < 300):
             suffix = "" if attempts == 1 else "s"
             raise ApiError(
                 f"API request failed after {attempts} attempt{suffix} "
-                f"({response.code}): {response.read().decode('utf-8')}"
+                f"({status}): {response_body.decode('utf-8')}"
             )
 
-        return json.loads(response.read())
+        return json.loads(response_body)
 
-    def _retryable_response(self, response):
-        return response.code in self.RETRYABLE_STATUS_CODES
+    def _is_retryable_status(self, status):
+        return status in self.RETRYABLE_STATUS_CODES
 
     def _retry_delay(self, attempt):
         return self.BASE_RETRY_DELAY * (2 ** (attempt - 1))
