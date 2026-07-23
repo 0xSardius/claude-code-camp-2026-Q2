@@ -210,10 +210,10 @@ verify `.gitignore` coverage with `git status --ignored`, port the README
 (same "port the real code's behavior, not the README's aspirational
 example" rule as step 1).
 
-## 7. Code review — never skip this
+## 7. Code review — never skip this, but keep it cheap
 
 Run the `code-review` skill (via `Workflow`, `name: "code-review"`,
-`args: "high ..."`) against the full diff — new Python files, the bin
+`args: "medium ..."`) against the full diff — new Python files, the bin
 launchers, the plan doc, and the in-flight Ruby fixes together. This has
 found real, non-obvious bugs on every step it's been run on so far (a
 missed `register_tool` normalization, a `None`-vs-`"None"` rendering bug,
@@ -221,6 +221,16 @@ a socket-leak in `04_api_client`'s HTTP client) that parity/live testing
 alone did not catch. Report findings with `ReportFindings`, fix anything
 CONFIRMED, then **re-run the step-5 parity check** after fixing — a review
 fix can (and has) needed re-verification just like any other code change.
+
+**Use `"medium"` effort, not `"high"`** (decided 2026-07-23, after 5 steps
+at `"high"` cost ~400-500k tokens each — north of 2M tokens total across
+the reviews run so far). Medium is the code-review skill's own cheaper
+tier (3+5 finder angles × 6 candidates → 1-vote verify, vs. high's larger
+fleet + heavier verification) and has caught the same class of bug so
+far — don't reach for `"high"` by default; only bump back up to it if the
+user asks for a step to get closer scrutiny (a step with unusually
+complex new logic, or one where medium's single-vote verify feels too
+thin for what's being reviewed).
 
 For findings that are genuine judgment calls rather than clear bugs (e.g.
 "should this now-reachable behavior change get a guard, or is it

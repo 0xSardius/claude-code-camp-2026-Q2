@@ -93,8 +93,12 @@ reasoning:
   first (reference the actual Ruby files, note any divergence from prior
   steps, ask before assuming), get it confirmed, then implement following
   its own milestones. Follow up with a code review (the `code-review`
-  skill) before considering a step done — it has found real, non-obvious
-  bugs (see Gotchas) that the parity test alone didn't catch.
+  skill, run via `Workflow` at **`"medium"` effort** — downgraded from
+  `"high"` 2026-07-23 after 5 steps at `~400-500k` tokens each; medium has
+  caught the same class of bug for meaningfully less cost) before
+  considering a step done — it has found real, non-obvious bugs (see
+  Gotchas) that the parity test alone didn't catch. This whole process is
+  now also captured as a project skill: `.claude/skills/python-port/`.
 
 ### Gotchas hit so far (don't re-discover these)
 
@@ -186,6 +190,74 @@ reasoning:
   "Considerations" section raises ("should this have been removed") — adding
   duplicate-detection now would be resolving that open question
   unilaterally, which this project's conventions say not to do.
+- **The `BOUKENSHA_DIR` off-by-one bug class hits other directory-relative
+  constants too, not just that one.** `03_prompt_builder` added
+  `Config::PROMPTS_DIR`, and it shipped with the exact same 3-`../`-
+  instead-of-4 (well, 3-instead-of-2 for this particular constant's
+  shallower path) bug on arrival. Check the hop math on *any* new
+  `File.expand_path(...,  __dir__)`-style constant a step introduces, not
+  just `BOUKENSHA_DIR` by name.
+- **Regressions of already-fixed bugs are the norm for this project, not
+  an edge case.** Every step since `02_the_registry` has reintroduced at
+  least one previously-fixed bug (`register_tool`'s `.to_s` normalization
+  regressed in `03_prompt_builder` AND `04_api_client`; `03`'s
+  `to_messages(system, messages)` arity fix and its `claude-sonnet-5`
+  MODELS entry both fully reverted in `04_api_client`). Always diff every
+  file against its predecessor even when you're confident it's unchanged —
+  don't skip the diff because a file "should" carry forward cleanly.
+- **Ruby's `JSON.pretty_generate` and Python's `json.dumps(indent=2)`
+  disagree on two things** (found in `03_prompt_builder`, matters for any
+  step that pretty-prints a payload/response for display): (1) empty
+  containers — Ruby emits one newline for `{}` but two for `[]` (a real,
+  confirmed asymmetry in Ruby's json gem), Python collapses both to one
+  line regardless of indent; (2) non-ASCII — Ruby's `JSON.generate` passes
+  UTF-8 through by default, Python's `json.dumps` defaults to
+  `ensure_ascii=True` (escaping to `\uXXXX`). A hand-rolled
+  `ruby_pretty_json` helper (see `03_prompt_builder`/`04_api_client`'s
+  `examples/example.py`) matches Ruby exactly; don't trust
+  `json.dumps(..., indent=2)` for anything byte-parity-tested.
+- **Ruby can overload one name across a class method and an instance
+  method; Python cannot.** `backends/base.rb`'s `self.model_info(model)`
+  (class method, 1-arg MODELS lookup) and `#model_info` (instance method,
+  0-arg getter) coexist fine in Ruby (separate method tables). A literal
+  Python port defining both as `model_info` in one class body just has the
+  second definition silently clobber the first. Fixed by renaming the
+  class-side lookup (`find_model_info`) rather than the instance-side one,
+  since the instance property is the one appearing in the class's
+  documented public API. General lesson: when a Ruby name-collision has no
+  Python equivalent, check which of the two colliding meanings is actually
+  the documented/public one before deciding which name to keep.
+- **`urllib.request.urlopen` splits "get the response" from "read the
+  body" into two steps; Ruby's `Net::HTTP#request` does both atomically in
+  one call, inside one `begin/rescue`.** `04_api_client`'s first port of
+  `Client#call` fetched the body (`response.read()`) *after* the
+  try/except that catches transient errors, so a connection reset mid-body
+  -download would crash unretried and unwrapped instead of being retried
+  like Ruby's version — caught by code review, not the live-call
+  verification. Fix: pull status AND body inside the same try/except.
+  Related: an unclosed `urllib` response leaks its underlying socket the
+  way an unclosed Ruby `Net::HTTP` connection doesn't (Ruby's one-off
+  `.request()` call closes its connection when it returns) — close the
+  response in a `finally` on every path (success, terminal error, and
+  before each retry), not just some of them.
+- **A step whose behavior is inherently non-deterministic (real network
+  calls, timestamps, randomness) can't use the byte-for-byte diff
+  acceptance test.** `04_api_client` makes real, billed API calls — a full
+  launcher-output diff is structurally impossible, not just inconvenient.
+  Resolved (2026-07-22) by agreeing on a different bar with the user: one
+  real round-trip per language proving success + matching JSON *shape* (not
+  values), one deliberately-invalid-key round-trip per language (free,
+  deterministic, verifies the `ApiError` path), and everything actually
+  deterministic (payload construction, retry/backoff logic) still verified
+  by direct code reading, same rigor as a normal review. Don't silently
+  relax the acceptance bar without an explicit decision like this one.
+- **Never read or print a secret's value into the transcript, even when
+  told it's fine to *use* it.** The user has a real `ANTHROPIC_API_KEY` in
+  the repo-root `.env` (gitignored) and said using it was fine — but the
+  right move was still to source it inline into the specific shell command
+  that needed it (`set -a; source .env; set +a; <command>`) rather than
+  `cat`/`grep` the file or write the value into any tracked or
+  logged/echoed location. "You can use X" is not "you can display X."
 
 ## week0_explore: architecture comparison findings
 

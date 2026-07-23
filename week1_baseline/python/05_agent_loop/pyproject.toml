@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "boukensha"
+version = "0.1.0"
+description = "Python port of the Boukensha agent loop (week1_baseline step 05_agent_loop) -- see docs/plans/python_port/05_agent_loop"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0.2",
+]
