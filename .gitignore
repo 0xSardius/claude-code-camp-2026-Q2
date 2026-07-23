@@ -14,6 +14,15 @@ week0_explore/preview/data/world/
 .boukensha/*
 !.boukensha/.keep
 
+# ...except session logs (week1_baseline step 06_the_logger onward), which
+# the instructor evaluates directly - tracked deliberately, unlike the rest
+# of .boukensha/ (settings.yaml/.env stay ignored: local config + real
+# credentials, neither belongs in the repo). A parent-directory exclusion
+# blocks git from looking inside it, so the directory itself must be
+# re-included before the file pattern within it can be.
+!.boukensha/sessions/
+!.boukensha/sessions/*.jsonl
+
 # Ruby: gitignore lockfiles for gems/libraries (let consumers resolve their
 # own dependency versions) - applies to week1_baseline/ruby and any future
 # Ruby steps

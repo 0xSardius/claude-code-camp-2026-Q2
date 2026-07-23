@@ -8,7 +8,7 @@ module Boukensha
     end
 
     def to_messages
-      @backend.to_messages(@context.messages)
+      @backend.to_messages(@context.system, @context.messages)
     end
 
     def to_tools
