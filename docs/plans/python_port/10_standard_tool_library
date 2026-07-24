@@ -1,0 +1,1373 @@
+# Python Port Plan — Step 10_standard_tool_library
+
+## Goal
+
+Port `week1_baseline/ruby/10_standard_tool_library` — three new built-in
+tool modules (`Tools::FileSystem`, `Tools::Shell`, `Tools::Mud`) plus new
+`working_dir:`/`allowed_commands:`/`shell_timeout:`/`mud:` keyword
+arguments on `Boukensha.run`/`.repl` — to Python at
+`week1_baseline/python/10_standard_tool_library`. Same conventions as
+prior steps — see [`00_config`](00_config) for the full rationale; this
+doc covers what's new. Note: `09_global_executable` was **not** ported
+(pure RubyGems packaging, no logic to mirror — see
+[`09_global_executable`](09_global_executable)), so this step's "previous
+step" for orientation/carry-forward purposes is `08_the_repl_loop`, the
+last step that *was* ported.
+
+## Decisions carried forward (unchanged)
+
+| Question | Decision |
+|---|---|
+| Port fidelity | Literal mirror of the Ruby architecture |
+| Ruby vs Python | Run alongside each other; Ruby stays untouched *except* real bug fixes explicitly authorized |
+| Tooling | `uv` + `pyproject.toml` |
+| Python package name | `boukensha` |
+| Copy-forward | Byte-identical-Ruby-source files copied from the already-fixed Python file of whichever prior step's Ruby source actually matches |
+
+## Decided with the user (2026-07-24)
+
+**`Tools::Mud` gets a full port**, not deferred or stubbed. Ruby's
+`Tools::Mud` depends on this project's own `mud_manager` gem
+(`week0_explore/mud_manager`) for the telnet session — there is no Python
+equivalent anywhere in the repo (`play-mud`'s `scripts/mud.py` is a
+standalone daemon script, not an importable session class). Chose the
+"full port now" option over deferring or stubbing, so Python reaches full
+parity with Ruby's live MUD-playing capability this step.
+
+**Placement decision (mine, not asked — a packaging detail, not a behavior
+question):** rather than standing up a brand-new top-level Python package
+mirroring `week0_explore/mud_manager` (its own `pyproject.toml`, `uv sync`,
+etc. — meaningfully bigger scope, and only used by this one step's
+`Tools::Mud`), the ported session/primitives code lives directly inside
+this step's own package as `boukensha/mud_session.py` and
+`boukensha/mud_primitives.py`. This is a packaging-topology difference,
+not a behavior difference — the Ruby gem's `Session`/`Primitives` classes
+are still mirrored faithfully, just vendored rather than split into a
+separate installable dependency. Also: `Primitives` in Ruby defines ~50
+command-builder methods; only the ~22 `Tools::Mud` actually calls are
+ported (`look`, `examine`, `info_self`, `move`, `flee`, `set_position`,
+`track`, `attack`, `skill_strike`, `consider`, `say_local`,
+`say_targeted`, `say_channel`, `get`, `drop`, `put`, `equip`, `consume`,
+`cast`, `use_magic_item`, `shop`, `practice`, `save_char`) — matching
+"port what's used," not the full unused surface.
+
+## New for this step: real Ruby bugs already fixed (not just the standard regression set)
+
+Both found and fixed during live review/testing of the Ruby source *before*
+this plan was written — see `docs/journal/1_week1.md`'s `10_standard_tool_library`
+entry for the full incident writeups:
+
+1. **`Tools::Shell`'s `allowed_commands` allow-list was bypassable.** It
+   only checked a command's first whitespace token, but `Open3.capture2e`
+   with a single string argument runs the whole command through a real
+   shell — `"git status; rm -rf ~"` passed an allow-list containing only
+   `"git"`. Fixed in Ruby by rejecting shell metacharacters
+   (`; & | > < \` $` or a newline) outright whenever an allow-list is set,
+   verified live (injection blocked, legitimate single commands still
+   pass). **Ported with the identical fix** — see `tools/shell.py` below.
+2. **`boukensha.gemspec`'s `mud_manager` dependency doesn't resolve** — it
+   has never been published to RubyGems, only exists locally. Fixed in
+   Ruby with a `Gemfile` `path:` override. **No Python equivalent needed**
+   — the placement decision above (vendoring `mud_session.py`/
+   `mud_primitives.py` directly in this step's package) sidesteps the
+   issue entirely; there's no external dependency to resolve.
+
+## New for this step: the standard regression set (reapplied, as always)
+
+Verified via diff against `09` (not `08`, since `09` was the most recently
+touched Ruby step) and already fixed in the Ruby source before this plan:
+`Context#register_tool` `.to_s` normalization (11th occurrence), the
+`begin/rescue/else` tool-dispatch logging fix (5th regression),
+`claude-sonnet-5` MODELS entry, the `to_messages(system, messages)` arity
+fix, `PROMPTS_DIR` hop count, `Config#resolve_dir`'s 3-tier fallback, the
+401 message, and the REPL orphaned-message rollback fix. All of these
+files carry forward from `08_the_repl_loop`'s **already-correct** Python
+versions unchanged (08's Python already has every one of these fixes) —
+nothing new to port here, just confirming no regression needs
+reapplying on the Python side.
+
+## New for this step: `Context` gains `working_dir`
+
+```ruby
+def initialize(task:, system: nil, working_dir: nil)
+  @working_dir = working_dir ? File.expand_path(working_dir) : nil
+end
+```
+
+Ruby's `working_dir ? ... : nil` is a **deliberate truthy check**, not a
+nil-check — `Boukensha.run`/`.repl` pass `working_dir: false` as the
+explicit opt-out sentinel, and `false` needs to map to "no working dir."
+This is one of the rare cases where a bare Python `if working_dir:` is
+*correct*, not a bug to fix with `is not None` — `False` is falsy in
+Python too, so the translation is direct. Noted explicitly (rather than
+silently applying `is not None` out of habit) because every other
+`||`/truthy-check in this codebase so far has needed the *opposite*
+correction. One edge case *not* guarded, matching Ruby: an explicit
+empty-string `working_dir=""` is truthy in Ruby (kept) but falsy in Python
+(treated as absent) — unreachable in practice (nobody passes `""` as a
+working directory), noted for fidelity's sake, not defended against.
+
+```python
+def __init__(self, *, task, system=None, working_dir=None):
+    self.task = task
+    self.system = system
+    self.working_dir = os.path.abspath(working_dir) if working_dir else None
+    self.messages = []
+    self.tools = {}
+```
+
+## New for this step: `Tools::FileSystem`
+
+Six tools (`pwd`, `list_directory`, `read_file`, `write_file`,
+`delete_file`, `search_files`), all sandboxed to a root directory via a
+`resolve(path)` helper that rejects traversal outside the root.
+
+```python
+# boukensha/tools/file_system.py
+"""Port of week1_baseline/ruby/10_standard_tool_library/lib/boukensha/tools/file_system.rb"""
+import re
+from pathlib import Path
+
+
+def register(registry, *, working_dir):
+    root = str(Path(working_dir).expanduser().resolve())
+
+    def resolve(path):
+        absolute = str((Path(root) / str(path)).resolve())
+        if absolute == root or absolute.startswith(root + "/"):
+            return absolute
+        return f"error: path '{path}' escapes the working directory"
+
+    def oops(msg):
+        return f"error: {msg}"
+
+    def pwd():
+        return root
+
+    def list_directory(path="."):
+        target = resolve(path)
+        if target.startswith("error:"):
+            return target
+        p = Path(target)
+        if not p.is_dir():
+            return oops(f"'{path}' is not a directory")
+        entries = sorted(e for e in p.iterdir() if e.name not in (".", ".."))
+        names = [f"{e.name}/" if e.is_dir() else e.name for e in entries]
+        return "\n".join(names) if names else "(empty)"
+
+    def read_file(path):
+        target = resolve(path)
+        if target.startswith("error:"):
+            return target
+        p = Path(target)
+        if not p.is_file():
+            return oops(f"'{path}' is not a file")
+        try:
+            return p.read_text()
+        except OSError as e:
+            return oops(str(e))
+
+    def write_file(path, content):
+        target = resolve(path)
+        if target.startswith("error:"):
+            return target
+        p = Path(target)
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content)
+            rel = target[len(root) + 1:]
+            return f"ok: wrote {len(content.encode('utf-8'))} bytes to {rel}"
+        except OSError as e:
+            return oops(str(e))
+
+    def delete_file(path):
+        target = resolve(path)
+        if target.startswith("error:"):
+            return target
+        p = Path(target)
+        if not p.is_file():
+            return oops(f"'{path}' is not a file")
+        try:
+            p.unlink()
+            return f"ok: deleted {path}"
+        except OSError as e:
+            return oops(str(e))
+
+    def search_files(pattern, path=".", glob="*"):
+        target = resolve(path)
+        if target.startswith("error:"):
+            return target
+        target_path = Path(target)
+        search_root = target_path.parent if target_path.is_file() else target_path
+        try:
+            regex = re.compile(pattern)
+        except re.error as e:
+            return oops(f"invalid pattern: {e}")
+
+        files = [target_path] if target_path.is_file() else sorted(search_root.glob(f"**/{glob}"))
+        matches = []
+        for f in files:
+            if not f.is_file():
+                continue
+            rel = str(f)[len(root) + 1:]
+            try:
+                for lineno, line in enumerate(f.read_text().splitlines(), start=1):
+                    if regex.search(line):
+                        matches.append(f"{rel}:{lineno}:{line}")
+            except OSError as e:
+                matches.append(f"{rel}: error reading file: {e}")
+        return "\n".join(matches) if matches else "no matches"
+
+    registry.tool(
+        "pwd",
+        description="Return the working directory — the root that all file paths are relative to.",
+        parameters={},
+        block=pwd,
+    )
+    registry.tool(
+        "list_directory",
+        description="List files and subdirectories at a path relative to the working directory. Defaults to the working directory itself.",
+        parameters={"path": {"type": "string", "description": "Relative path to list (default '.')"}},
+        block=list_directory,
+    )
+    registry.tool(
+        "read_file",
+        description="Read and return the full contents of a file. Path is relative to the working directory.",
+        parameters={"path": {"type": "string", "description": "Relative path to the file"}},
+        block=read_file,
+    )
+    registry.tool(
+        "write_file",
+        description="Write content to a file, creating it (and any missing parent directories) if needed, overwriting if it exists. Path is relative to the working directory.",
+        parameters={
+            "path": {"type": "string", "description": "Relative path to the file"},
+            "content": {"type": "string", "description": "Text content to write"},
+        },
+        block=write_file,
+    )
+    registry.tool(
+        "delete_file",
+        description="Delete a file. Directories are not deleted. Path is relative to the working directory.",
+        parameters={"path": {"type": "string", "description": "Relative path to the file to delete"}},
+        block=delete_file,
+    )
+    registry.tool(
+        "search_files",
+        description="Search for a text pattern (literal string or regex) across all files in the working directory tree. Returns matching lines in 'path:line_number:content' format.",
+        parameters={
+            "pattern": {"type": "string", "description": "The text or regex pattern to search for"},
+            "path": {"type": "string", "description": "Subdirectory or file to search within (default '.' = entire working directory)"},
+            "glob": {"type": "string", "description": "File glob to restrict which files are searched, e.g. '*.rb' (default '*')"},
+        },
+        block=search_files,
+    )
+```
+
+Translation notes:
+- Ruby's `Dir.entries(target).reject{".."}.sort.map{...}` → Python's
+  `sorted(p.iterdir())` (Python's `iterdir()` never yields `.`/`..`, so
+  the reject step has nothing to do — not a gap, Python's stdlib already
+  excludes them).
+- Ruby regex search uses `Regexp.new(pattern)`; Python uses `re.compile`.
+  Ruby's `Regexp` and Python's `re` have different dialects (e.g.
+  lookbehind width limits) — not reconciled here, same "close enough for
+  the patterns this example actually exercises" treatment as
+  `03_prompt_builder`'s JSON-formatting gap. Flag if it ever matters.
+- `line.chomp` (strips trailing newline) → `line` from
+  `.read_text().splitlines()` (splitlines already excludes the newline —
+  equivalent result, different mechanism).
+
+## New for this step: `Tools::Shell`
+
+```python
+# boukensha/tools/shell.py
+"""Port of week1_baseline/ruby/10_standard_tool_library/lib/boukensha/tools/shell.rb --
+includes the shell-metacharacter allow-list fix (see the plan's dedicated
+section above), not just a translation of the original vulnerable version.
+"""
+import re
+import subprocess
+from pathlib import Path
+
+_METACHARS = re.compile(r"[;&|><`$\n]|\$\(")
+
+
+def register(registry, *, working_dir, timeout=30, allowed_commands=None):
+    root = str(Path(working_dir).expanduser().resolve())
+
+    def oops(msg):
+        return f"error: {msg}"
+
+    def run_command(command):
+        if allowed_commands:
+            if _METACHARS.search(str(command)):
+                return oops(
+                    "command contains shell metacharacters (; & | > < ` $ or a newline), "
+                    "which is not allowed when an allowed-commands list is set"
+                )
+            executable = str(command).strip().split()[0] if str(command).strip() else ""
+            if executable not in [str(c) for c in allowed_commands]:
+                return oops(f"'{executable}' is not in the allowed-commands list ({', '.join(allowed_commands)})")
+
+        try:
+            result = subprocess.run(
+                command, shell=True, cwd=root, timeout=timeout,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            )
+        except subprocess.TimeoutExpired:
+            return oops(f"command timed out after {timeout}s: {command}")
+        except OSError as e:
+            return oops(f"command not found: {e}")
+
+        exit_note = "" if result.returncode == 0 else f"\n[exit {result.returncode}]"
+        output = result.stdout.decode("utf-8", errors="replace").strip()
+        return f"(no output){exit_note}" if not output else f"{output}{exit_note}"
+
+    allow_note = f" Allowed executables: {', '.join(allowed_commands)}." if allowed_commands else ""
+    registry.tool(
+        "run_command",
+        description=(
+            f"Run a shell command inside the working directory and return its combined stdout+stderr output. "
+            f"Commands run with a {timeout}-second timeout.{allow_note}"
+        ),
+        parameters={"command": {"type": "string", "description": "The shell command to execute (e.g. 'ruby script.rb', 'ls -la', 'git status')"}},
+        block=run_command,
+    )
+```
+
+Translation notes:
+- Ruby's `Open3.capture2e(command, chdir: root)` (single string → shell)
+  maps to Python's `subprocess.run(command, shell=True, cwd=root, ...)` —
+  same shell-invocation shape, same reason the metacharacter guard is
+  needed on both sides.
+- Ruby's `Timeout.timeout(timeout) { ... }` around `Open3.capture2e`
+  **does not actually kill the child process** on timeout (a real,
+  separately-noted gap in the Ruby source — `Timeout.timeout` only
+  interrupts the calling thread). Python's `subprocess.run(...,
+  timeout=timeout)` **does** correctly terminate the child on timeout
+  (raises `TimeoutExpired` after killing the process) — this makes the
+  Python port *more correct* than the Ruby original on this specific
+  point, not a fidelity gap to "fix away." Noted, not reconciled backward
+  into Ruby (out of scope for this port; flag separately if the user
+  wants the Ruby side hardened too).
+- `_METACHARS` pattern is the literal Python-regex equivalent of Ruby's
+  `/[;&|><\`$\n]|\$\(/`.
+
+## New for this step: `Tools::Mud`
+
+This is the big new piece. Three files:
+
+### `boukensha/mud_session.py` (NEW — ports `week0_explore/mud_manager/lib/mud_manager/session.rb`)
+
+A long-lived telnet connection: background reader thread draining the
+socket into a buffer (stripping IAC telnet negotiation bytes), plus
+`send_command`/`drain`/`read_until_quiet`/`read_until`/`read_until_prompt`
+for the send-then-collect-response pattern every `Tools::Mud` tool call
+uses.
+
+```python
+"""Port of week0_explore/mud_manager/lib/mud_manager/session.rb -- a
+long-lived telnet connection to a CircleMUD server. Vendored inside this
+step's package rather than as a separate installable Python package (see
+the port plan's placement-decision section) -- mud_manager the Ruby gem
+is an external dependency Tools::Mud requires; there's no equivalent
+Python package to depend on, and standing one up was judged out of
+proportion to what this one step needs.
+"""
+import re
+import socket
+import threading
+import time
+
+
+class SessionError(Exception):
+    pass
+
+
+class ConnectionError(SessionError):
+    pass
+
+
+class LoginError(SessionError):
+    pass
+
+
+class SessionTimeout(SessionError):
+    # Ruby names this `Timeout` (nested under Session) -- Python's stdlib
+    # already has a built-in-adjacent `TimeoutError`; naming this
+    # SessionTimeout avoids shadowing confusion, not a behavior change.
+    pass
+
+
+class Session:
+    DEFAULT_HOST = "localhost"
+    DEFAULT_PORT = 4000
+    DEFAULT_TIMEOUT = 10.0
+
+    IAC, DONT, DO, WONT, WILL, SB, SE = 0xFF, 0xFE, 0xFD, 0xFC, 0xFB, 0xFA, 0xF0
+
+    PROMPT_SENTINEL = "> "
+
+    def __init__(self, *, host=DEFAULT_HOST, port=DEFAULT_PORT, timeout=DEFAULT_TIMEOUT):
+        self.host = host
+        self.port = port
+        self._timeout = timeout
+        self._socket = None
+        self._reader = None
+        self._buffer = ""
+        self._lock = threading.Lock()
+        self._cv = threading.Condition(self._lock)
+        self._closed = False
+        self._last_recv_at = None
+
+    def open(self):
+        if self._socket is not None:
+            raise SessionError("already open")
+        try:
+            self._socket = socket.create_connection((self.host, self.port))
+        except OSError as e:
+            raise ConnectionError(f"connect {self.host}:{self.port} failed: {e}")
+        self._closed = False
+        self._start_reader()
+        return self
+
+    def is_open(self):
+        return self._socket is not None and not self._closed
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            if self._socket:
+                self._socket.close()
+        except OSError:
+            pass
+        if self._reader:
+            self._reader.join(1)
+        self._socket = None
+        self._reader = None
+
+    def send_command(self, command):
+        if not self.is_open():
+            raise SessionError("session not open")
+        # Ruby: command == :return || :enter -> "" (symbol sentinel for
+        # "just press enter"). No Python symbol type -- callers pass "" or
+        # None directly for a blank line instead; nothing in Tools::Mud
+        # needs the sentinel form.
+        line = command.raw if hasattr(command, "raw") else ("" if command is None else str(command))
+        self._socket.sendall((line + "\r\n").encode("utf-8"))
+        return line
+
+    send = send_command
+
+    def drain(self):
+        with self._lock:
+            out, self._buffer = self._buffer, ""
+            return out
+
+    def read_until_quiet(self, quiet_seconds=1.0, timeout=None):
+        if not self.is_open():
+            raise SessionError("session not open")
+        deadline = time.monotonic() + (timeout or self._timeout)
+        with self._lock:
+            while True:
+                remaining_total = deadline - time.monotonic()
+                if remaining_total <= 0:
+                    break
+                if self._last_recv_at is not None and (time.monotonic() - self._last_recv_at) >= quiet_seconds and self._buffer:
+                    break
+                if self._last_recv_at is not None and self._buffer:
+                    wait_for = quiet_seconds - (time.monotonic() - self._last_recv_at)
+                else:
+                    wait_for = remaining_total
+                wait_for = min(wait_for, remaining_total)
+                if wait_for <= 0:
+                    break
+                self._cv.wait(wait_for)
+            out, self._buffer = self._buffer, ""
+            return out
+
+    def read_until(self, pattern, timeout=None):
+        if not self.is_open():
+            raise SessionError("session not open")
+        regex = pattern if isinstance(pattern, re.Pattern) else re.compile(re.escape(pattern))
+        deadline = time.monotonic() + (timeout or self._timeout)
+        with self._lock:
+            while True:
+                m = regex.search(self._buffer)
+                if m:
+                    cut = m.end()
+                    out, self._buffer = self._buffer[:cut], self._buffer[cut:]
+                    return out
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise SessionTimeout(f"read_until {pattern!r} after {timeout}s")
+                if self._closed:
+                    raise ConnectionError("socket closed while waiting")
+                self._cv.wait(remaining)
+
+    def read_until_prompt(self, timeout=None):
+        try:
+            return self.read_until(self.PROMPT_SENTINEL, timeout=timeout)
+        except SessionTimeout:
+            return self.drain()
+
+    # Walk the CircleMUD login dance (existing accounts only -- no
+    # new-character creation flow, matching Ruby's mud_manager exactly).
+    def login(self, username, password):
+        self.read_until(re.compile(r"By what name do you wish to be known.*\?", re.IGNORECASE))
+        self.send_command(username)
+        self.read_until(re.compile(r"Password", re.IGNORECASE))
+        self.send_command(password)
+        output = self.read_until(re.compile(r"Welcome|Reconnecting|Wrong password", re.IGNORECASE))
+        if re.search("Reconnecting", output, re.IGNORECASE):
+            pass
+        elif re.search("Welcome", output, re.IGNORECASE):
+            self.send_command("")
+            self.send_command("1")
+            self.read_until_quiet()
+        elif re.search("Wrong password", output, re.IGNORECASE):
+            raise LoginError("wrong password")
+
+    # ----- internals -----
+
+    def _start_reader(self):
+        def run():
+            try:
+                while True:
+                    chunk = self._socket.recv(4096)
+                    if not chunk:
+                        break
+                    text = self._strip_iac(chunk)
+                    if text:
+                        with self._lock:
+                            self._buffer += text
+                            self._last_recv_at = time.monotonic()
+                            self._cv.notify_all()
+            except OSError:
+                pass  # remote closed / socket torn down -- fall through
+            finally:
+                with self._lock:
+                    self._closed = True
+                    self._cv.notify_all()
+
+        self._reader = threading.Thread(target=run, daemon=True)
+        self._reader.start()
+
+    def _strip_iac(self, raw: bytes) -> str:
+        out = bytearray()
+        i = 0
+        n = len(raw)
+        while i < n:
+            b = raw[i]
+            if b == self.IAC:
+                nxt = raw[i + 1] if i + 1 < n else None
+                if nxt is None:
+                    break
+                elif nxt == self.IAC:
+                    out.append(0xFF)
+                    i += 2
+                elif nxt in (self.WILL, self.WONT, self.DO, self.DONT):
+                    i += 3
+                elif nxt == self.SB:
+                    j = i + 2
+                    while j < n and not (raw[j] == self.IAC and j + 1 < n and raw[j + 1] == self.SE):
+                        j += 1
+                    i = j + 2
+                else:
+                    i += 2
+            else:
+                out.append(b)
+                i += 1
+        return out.decode("latin-1", errors="replace")
+```
+
+Translation notes:
+- Ruby's `Mutex`+`ConditionVariable` → Python's `threading.Lock`+
+  `threading.Condition` (a `Condition` wraps its own lock; passing the
+  existing lock into `Condition(self._lock)` keeps the same single-lock
+  discipline Ruby's `@buffer_mu`/`@buffer_cv` pair has).
+  `Process.clock_gettime(Process::CLOCK_MONOTONIC)` → `time.monotonic()`.
+- Ruby's reader thread uses `@socket.readpartial(4096)`, which raises
+  `EOFError` at a clean close; Python's `socket.recv(4096)` returns `b""`
+  at a clean close instead of raising — `if not chunk: break` handles that
+  directly, no exception-based translation needed there. Both still catch
+  the analogous "torn down mid-read" errors (Ruby: `IOError`,
+  `Errno::ECONNRESET`; Python: `OSError`, which is the superclass of
+  `ConnectionResetError` — a slightly broader catch than Ruby's explicit
+  two, deliberately: fewer distinct Python exception types map cleanly
+  onto that pair, and swallowing a broader class of "the socket died" is
+  the intent either way).
+- `strip_iac` ported byte-for-byte identical branch structure (IAC-IAC
+  escape, WILL/WONT/DO/DONT 3-byte skip, SB...SE variable-length skip,
+  unknown-option 2-byte skip). Ruby decodes with
+  `force_encoding(Encoding::UTF_8)` after building the stripped byte
+  string; Python decodes with `"latin-1"` (never raises on arbitrary
+  bytes, matching how the MUD's raw output — which can contain stray
+  non-UTF-8 bytes from ANSI color codes — is handled leniently on the
+  Ruby side too, since Ruby's `force_encoding` doesn't validate either).
+- `read_until`/`read_until_quiet`'s wait-loop logic ported condition-for-
+  condition — this is the trickiest piece to get byte-behavior-identical;
+  re-read both side by side before changing either once ported.
+- `login`'s new-character branches are intentionally NOT here (Ruby's
+  `mud_manager` doesn't implement account creation either — confirmed by
+  reading `session.rb` directly during this session's live character
+  creation, which had to be scripted by hand outside the gem for exactly
+  this reason).
+
+### `boukensha/mud_primitives.py` (NEW — ports the ~22 used methods from `week0_explore/mud_manager/lib/mud_manager/primitives.rb`)
+
+```python
+"""Port of the subset of week0_explore/mud_manager/lib/mud_manager/primitives.rb
+that Tools::Mud actually calls -- see the port plan's placement-decision
+section for why this isn't the full ~50-method surface.
+"""
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Command:
+    primitive: str
+    verb: str
+    raw: str
+    args: dict = field(default_factory=dict)
+
+
+DIRECTIONS = ["north", "east", "south", "west", "up", "down"]
+POSITIONS = ["stand", "sit", "rest", "sleep", "wake"]
+ATTACK_STYLES = ["hit", "murder", "kill"]
+STRIKE_SKILLS = ["backstab", "bash", "kick", "rescue", "assist"]
+LOCAL_SAY = ["say", "emote", "reply"]
+TARGETED_SAY = ["tell", "whisper", "ask"]
+CHANNELS = ["shout", "gossip", "auction", "grats", "holler"]
+DROP_MODES = ["drop", "donate", "junk"]
+EQUIP_OPS = ["wear", "wield", "grab", "hold", "remove"]
+CONSUME_MODES = ["eat", "taste", "drink", "sip"]
+LOOK_MODES = ["look", "read"]
+LOOK_PREPS = ["in", "at", "north", "east", "south", "west", "up", "down"]
+INFO_SELF = ["score", "inventory", "equipment", "gold", "exits", "time",
+             "weather", "levels", "wimpy", "toggle", "where"]
+SPELL_ITEM = ["use", "quaff", "recite"]
+SHOP_OPS = ["buy", "sell", "list", "value", "offer"]
+
+
+def _check_enum(value, allowed, name):
+    v = str(value).lower()
+    if v not in allowed:
+        raise ValueError(f"invalid {name}: {value!r} (expected one of {', '.join(allowed)})")
+    return v
+
+
+def _require_str(value, name):
+    if value is None or str(value).strip() == "":
+        raise ValueError(f"{name} is required")
+
+
+def move(direction):
+    verb = _check_enum(direction, DIRECTIONS, "direction")
+    return Command("move", verb, verb)
+
+
+def flee():
+    return Command("flee", "flee", "flee")
+
+
+def set_position(pos):
+    verb = _check_enum(pos, POSITIONS, "pos")
+    return Command("set_position", verb, verb)
+
+
+def track(victim):
+    _require_str(victim, "victim")
+    return Command("track", "track", f"track {victim}", {"victim": victim})
+
+
+def attack(style, target):
+    verb = _check_enum(style, ATTACK_STYLES, "style")
+    _require_str(target, "target")
+    return Command("attack", verb, f"{verb} {target}", {"target": target})
+
+
+def skill_strike(skill, target):
+    verb = _check_enum(skill, STRIKE_SKILLS, "skill")
+    _require_str(target, "target")
+    return Command("skill_strike", verb, f"{verb} {target}", {"target": target})
+
+
+def say_local(mode, text):
+    verb = _check_enum(mode, LOCAL_SAY, "mode")
+    _require_str(text, "text")
+    return Command("say_local", verb, f"{verb} {text}", {"text": text})
+
+
+def say_targeted(mode, target, text):
+    verb = _check_enum(mode, TARGETED_SAY, "mode")
+    _require_str(target, "target")
+    _require_str(text, "text")
+    return Command("say_targeted", verb, f"{verb} {target} {text}", {"target": target, "text": text})
+
+
+def say_channel(channel, text):
+    verb = _check_enum(channel, CHANNELS, "channel")
+    _require_str(text, "text")
+    return Command("say_channel", verb, f"{verb} {text}", {"text": text})
+
+
+def get(obj, container=None, count=None):
+    _require_str(obj, "obj")
+    parts = ["get"]
+    if count:
+        parts.append(str(count))
+    parts.append(obj)
+    if container:
+        parts.append(container)
+    return Command("get", "get", " ".join(parts), {"obj": obj, "container": container, "count": count})
+
+
+def drop(mode, obj, count=None):
+    verb = _check_enum(mode, DROP_MODES, "mode")
+    _require_str(obj, "obj")
+    parts = [verb]
+    if count:
+        parts.append(str(count))
+    parts.append(obj)
+    return Command("drop", verb, " ".join(parts), {"obj": obj, "count": count})
+
+
+def put(obj, container, count=None):
+    _require_str(obj, "obj")
+    _require_str(container, "container")
+    parts = ["put"]
+    if count:
+        parts.append(str(count))
+    parts += [obj, container]
+    return Command("put", "put", " ".join(parts), {"obj": obj, "container": container, "count": count})
+
+
+def equip(slot_op, obj, body_loc=None):
+    verb = _check_enum(slot_op, EQUIP_OPS, "slot_op")
+    _require_str(obj, "obj")
+    raw = f"{verb} {obj} {body_loc}" if body_loc else f"{verb} {obj}"
+    return Command("equip", verb, raw, {"obj": obj, "body_loc": body_loc})
+
+
+def consume(mode, obj):
+    verb = _check_enum(mode, CONSUME_MODES, "mode")
+    _require_str(obj, "obj")
+    return Command("consume", verb, f"{verb} {obj}", {"obj": obj})
+
+
+def look(mode="look", target=None, preposition=None):
+    target = None if target is not None and str(target).strip() == "" else target
+    preposition = None if preposition is not None and str(preposition).strip() == "" else preposition
+    verb = _check_enum(mode, LOOK_MODES, "mode")
+    if preposition:
+        _check_enum(preposition, LOOK_PREPS, "preposition")
+    parts = [verb]
+    if preposition:
+        parts.append(preposition)
+    if target:
+        parts.append(target)
+    return Command("look", verb, " ".join(parts), {"target": target, "preposition": preposition})
+
+
+def examine(target):
+    _require_str(target, "target")
+    return Command("examine", "examine", f"examine {target}", {"target": target})
+
+
+def info_self(kind):
+    verb = _check_enum(kind, INFO_SELF, "kind")
+    return Command("info_self", verb, verb)
+
+
+def consider(target):
+    _require_str(target, "target")
+    return Command("consider", "consider", f"consider {target}", {"target": target})
+
+
+def cast(spell, target=None):
+    _require_str(spell, "spell")
+    raw = f"cast '{spell}' {target}" if target else f"cast '{spell}'"
+    return Command("cast", "cast", raw, {"spell": spell, "target": target})
+
+
+def use_magic_item(mode, item, target_args=None):
+    verb = _check_enum(mode, SPELL_ITEM, "mode")
+    _require_str(item, "item")
+    raw = f"{verb} {item} {target_args}" if target_args else f"{verb} {item}"
+    return Command("use_magic_item", verb, raw, {"item": item, "target_args": target_args})
+
+
+def shop(op, args=None):
+    verb = _check_enum(op, SHOP_OPS, "op")
+    raw = f"{verb} {args}" if args else verb
+    return Command("shop", verb, raw, {"args": args})
+
+
+def practice(skill=None):
+    raw = f"practice {skill}" if skill else "practice"
+    return Command("practice", "practice", raw, {"skill": skill})
+
+
+def save_char():
+    return Command("save_char", "save", "save")
+```
+
+Translation notes:
+- Ruby's `Struct.new(:primitive, :raw, :verb, :args, keyword_init: true)`
+  → a `@dataclass` (same "Struct → dataclass for plain data" precedent as
+  `01_struct_skeleton`'s `Tool`/`Message`).
+  `Command#to_s = raw` → not reproduced (nothing calls `str()` on a
+  `Command` in the ported `Tools::Mud`; `.raw` is accessed directly).
+- Ruby's `check_enum!`/`require_str!` raise `ArgumentError`; Python raises
+  `ValueError` (same precedent as `tasks/base.py`'s settings validation).
+- Ruby's `door.to_s.strip.empty?`-style "treat blank as absent" pattern in
+  `look`'s `target`/`preposition` params: ported as `x is not None and
+  str(x).strip() == ""` rather than a bare truthy/falsy check, since `""`
+  needs distinguishing from a legitimately-omitted `None` the same way as
+  everywhere else in this codebase.
+
+### `boukensha/tools/mud.py` (NEW — ports `week1_baseline/ruby/10_standard_tool_library/lib/boukensha/tools/mud.rb`)
+
+```python
+"""Port of week1_baseline/ruby/10_standard_tool_library/lib/boukensha/tools/mud.rb"""
+from .. import mud_primitives as p
+from ..mud_session import Session, LoginError
+
+
+def register(registry, *, host="localhost", port=4000, name, password):
+    session = Session(host=host, port=port)
+
+    def send_cmd(command):
+        session.drain()
+        session.send_command(command)
+        return session.read_until_prompt()
+
+    def guard():
+        return None if session.is_open() else "error: not connected — call mud_connect first"
+
+    def mud_connect():
+        if session.is_open():
+            return f"already connected to {session.host}:{session.port}"
+        try:
+            session.open()
+            welcome = session.login(name, password)
+            return f"connected to {session.host}:{session.port}\n{welcome or ''}"
+        except LoginError as e:
+            return f"error: {e}"
+
+    def mud_disconnect():
+        if session.is_open():
+            session.close()
+            return "disconnected"
+        return "already disconnected"
+
+    def mud_status():
+        return f"connected to {session.host}:{session.port}" if session.is_open() else "disconnected"
+
+    def look(target=None, preposition=None):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.look(target=target, preposition=preposition))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def examine(target):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.examine(target))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def check(kind):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.info_self(kind))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def move(direction):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.move(direction))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def flee():
+        g = guard()
+        if g:
+            return g
+        return send_cmd(p.flee())
+
+    def set_position(position):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.set_position(position))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def track(target):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.track(target))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def attack(target, style="kill"):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.attack(style, target))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def skill_strike(skill, target):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.skill_strike(skill, target))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def consider(target):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.consider(target))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def say(text, mode="say"):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.say_local(mode, text))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def tell(target, text, mode="tell"):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.say_targeted(mode, target, text))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def channel_say(channel, text):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.say_channel(channel, text))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def get_item(item, container=None, count=None):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.get(item, container=container, count=count))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def drop_item(item, mode="drop", count=None):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.drop(mode, item, count=count))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def put_item(item, container, count=None):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.put(item, container, count=count))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def equip_item(item, action, body_loc=None):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.equip(action, item, body_loc=body_loc))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def consume_item(item, mode="eat"):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.consume(mode, item))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def cast_spell(spell, target=None):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.cast(spell, target=target))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def use_magic_item(item, mode, target_args=None):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.use_magic_item(mode, item, target_args=target_args))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def shop(action, args=None):
+        g = guard()
+        if g:
+            return g
+        try:
+            return send_cmd(p.shop(action, args=args))
+        except ValueError as e:
+            return f"error: {e}"
+
+    def practice(skill=None):
+        g = guard()
+        if g:
+            return g
+        return send_cmd(p.practice(skill))
+
+    def save_character():
+        g = guard()
+        if g:
+            return g
+        return send_cmd(p.save_char())
+
+    def send_raw(command):
+        g = guard()
+        if g:
+            return g
+        session.send_command(command)
+        return session.read_until_quiet()
+
+    registry.tool("mud_connect", description="Open the connection to the MUD server and log in with the configured character name and password. Safe to call when already connected (returns current status instead of reconnecting).", parameters={}, block=mud_connect)
+    registry.tool("mud_disconnect", description="Close the connection to the MUD server gracefully.", parameters={}, block=mud_disconnect)
+    registry.tool("mud_status", description="Return whether the MUD session is currently connected.", parameters={}, block=mud_status)
+    registry.tool("look", description="Look at the current room or at a specific target. Call with NO arguments to describe the current room (do NOT pass target: 'room'). Pass a target to inspect a specific item, mob, or player (e.g. target: 'sword'). Use preposition 'in' to look inside a container, 'at' to inspect something, or a direction (north/east/south/west/up/down) to peek into an adjacent room.", parameters={"target": {"type": "string", "description": "Item, mob, or player name to inspect. Omit entirely to describe the current room."}, "preposition": {"type": "string", "description": "Preposition: in, at, north, east, south, west, up, down (optional)"}}, block=look)
+    registry.tool("examine", description="Examine a target in detail (more verbose than look).", parameters={"target": {"type": "string", "description": "The item, mob, or player to examine"}}, block=examine)
+    registry.tool("check", description="Query information about your character or surroundings. Kinds: score, inventory, equipment, gold, exits, time, weather, levels, wimpy, toggle, where.", parameters={"kind": {"type": "string", "description": "What to check: score | inventory | equipment | gold | exits | time | weather | levels | wimpy | toggle | where"}}, block=check)
+    registry.tool("move", description="Move in a compass direction or up/down.", parameters={"direction": {"type": "string", "description": "Direction: north | east | south | west | up | down"}}, block=move)
+    registry.tool("flee", description="Attempt to flee from combat in a random available direction.", parameters={}, block=flee)
+    registry.tool("set_position", description="Change body position. Use 'rest' or 'sleep' between fights to recover HP and mana. Must be standing to move or fight.", parameters={"position": {"type": "string", "description": "Position: stand | sit | rest | sleep | wake"}}, block=set_position)
+    registry.tool("track", description="Attempt to track a mob or player by name, revealing which direction they are in. Requires the Track skill.", parameters={"target": {"type": "string", "description": "Name of the mob or player to track"}}, block=track)
+    registry.tool("attack", description="Attack a target. Style 'kill' is the standard approach; 'murder' bypasses the mercy check; 'hit' is a one-off strike.", parameters={"target": {"type": "string", "description": "Name of the mob or player to attack"}, "style": {"type": "string", "description": "Attack style: kill | hit | murder (default: kill)"}}, block=attack)
+    registry.tool("skill_strike", description="Use a combat skill against a target.", parameters={"skill": {"type": "string", "description": "Skill: bash | kick | backstab | rescue | assist"}, "target": {"type": "string", "description": "Name of the mob or player"}}, block=skill_strike)
+    registry.tool("consider", description="Assess a mob's relative strength before engaging in combat. Returns a phrase such as 'You could kill it easily' or 'Death awaits you'. Always consider before attacking an unknown mob.", parameters={"target": {"type": "string", "description": "Name of the mob to consider"}}, block=consider)
+    registry.tool("say", description="Speak or emote in the current room.", parameters={"text": {"type": "string", "description": "What to say or emote"}, "mode": {"type": "string", "description": "Mode: say | emote | reply (default: say)"}}, block=say)
+    registry.tool("tell", description="Send a private message to a specific player.", parameters={"target": {"type": "string", "description": "Player name to message"}, "text": {"type": "string", "description": "The message"}, "mode": {"type": "string", "description": "Mode: tell | whisper | ask (default: tell)"}}, block=tell)
+    registry.tool("channel_say", description="Broadcast a message over a global channel.", parameters={"channel": {"type": "string", "description": "Channel: shout | gossip | auction | grats | holler"}, "text": {"type": "string", "description": "The message to broadcast"}}, block=channel_say)
+    registry.tool("get_item", description="Pick up an item from the room or from a container.", parameters={"item": {"type": "string", "description": "Name of the item to get"}, "container": {"type": "string", "description": "Container to get it from (optional)"}, "count": {"type": "integer", "description": "Number of items to get (optional)"}}, block=get_item)
+    registry.tool("drop_item", description="Drop, donate, or junk an item.", parameters={"item": {"type": "string", "description": "Name of the item"}, "mode": {"type": "string", "description": "Mode: drop | donate | junk (default: drop)"}, "count": {"type": "integer", "description": "Number of items (optional)"}}, block=drop_item)
+    registry.tool("put_item", description="Put an item into a container.", parameters={"item": {"type": "string", "description": "Name of the item to put"}, "container": {"type": "string", "description": "Name of the container"}, "count": {"type": "integer", "description": "Number of items (optional)"}}, block=put_item)
+    registry.tool("equip_item", description="Wear, wield, hold, grab, or remove an item.", parameters={"item": {"type": "string", "description": "Name of the item"}, "action": {"type": "string", "description": "Action: wear | wield | hold | grab | remove"}, "body_loc": {"type": "string", "description": "Body location to wear on (optional, e.g. 'head', 'finger')"}}, block=equip_item)
+    registry.tool("consume_item", description="Eat, drink, taste, or sip a consumable item.", parameters={"item": {"type": "string", "description": "Name of the item to consume"}, "mode": {"type": "string", "description": "Mode: eat | drink | taste | sip (default: eat)"}}, block=consume_item)
+    registry.tool("cast_spell", description="Cast a spell, optionally at a target.", parameters={"spell": {"type": "string", "description": "Full spell name (e.g. 'cure light wounds', 'magic missile')"}, "target": {"type": "string", "description": "Target mob, player, or object (optional)"}}, block=cast_spell)
+    registry.tool("use_magic_item", description="Activate a magic item: quaff a potion, recite a scroll, or use a wand/staff.", parameters={"item": {"type": "string", "description": "Name of the item to activate"}, "mode": {"type": "string", "description": "Mode: quaff | recite | use"}, "target_args": {"type": "string", "description": "Optional target arguments (e.g. mob name for a wand)"}}, block=use_magic_item)
+    registry.tool("shop", description="Interact with a shop NPC: list stock, buy, sell, or get the value of an item.", parameters={"action": {"type": "string", "description": "Action: list | buy | sell | value | offer"}, "args": {"type": "string", "description": "Item name or number (optional)"}}, block=shop)
+    registry.tool("practice", description="List your known skills at a guildmaster, or practice a specific skill.", parameters={"skill": {"type": "string", "description": "Skill name to practice (omit to list all)"}}, block=practice)
+    registry.tool("save_character", description="Save your character to disk so progress is not lost on disconnect.", parameters={}, block=save_character)
+    registry.tool("send_raw", description="Send an arbitrary command string to the MUD and return the response. Use this as an escape hatch when no structured tool fits.", parameters={"command": {"type": "string", "description": "The raw command to send (e.g. 'who', 'help backstab')"}}, block=send_raw)
+
+    # Auto-connect at startup so the session is ready immediately and the
+    # agent doesn't need to waste a turn calling mud_connect first.
+    try:
+        session.open()
+        session.login(name, password)
+    except LoginError as e:
+        import sys
+        print(f"[boukensha] MUD auto-connect failed: {e} — call mud_connect manually", file=sys.stderr)
+```
+
+Translation notes:
+- Ruby's `registry.tool "name", description: ..., parameters: {...} do
+  |kwargs| ... end` block-with-keyword-args maps directly to Python's
+  `RunDSL`/`Registry#tool(name, *, description, parameters=None, block)`
+  taking a plain function — same shape already established by every prior
+  tool registration in this codebase, nothing new here.
+- Ruby's `next guard.call if guard.call` (calls the guard lambda twice —
+  a harmless inefficiency, not a bug, since it's a pure `session.open?`
+  check) is simplified to `g = guard(); if g: return g` in Python — one
+  call instead of two, a direct simplification given the double-call has
+  no purpose to preserve, not a fidelity gap.
+- Ruby's `rescue ArgumentError => e` around each primitive call (catching
+  `check_enum!`/`require_str!` validation failures) → Python's `except
+  ValueError as e`, matching the `ArgumentError`→`ValueError` mapping used
+  throughout `mud_primitives.py`.
+- The **auto-connect-at-registration** behavior (opening the session and
+  logging in as soon as `Tools::Mud.register`/`register()` runs, not
+  waiting for the agent to call `mud_connect`) is preserved exactly —
+  this is what let this session's live Ruby MUD test work without an
+  explicit connect step, and Python needs the same behavior for parity.
+
+## New for this step: `boukensha/__init__.py`
+
+`run()`/`repl()` both gain `working_dir=os.getcwd()`,
+`allowed_commands=None`, `shell_timeout=30`, `mud=None` keyword
+parameters, mirroring Ruby's new params exactly (including the
+`working_dir: Dir.pwd` *default-to-cwd*, distinct from `working_dir:
+False` as the explicit opt-out — see the `Context` section above for the
+truthy-check reasoning). A new private-by-convention
+`_mud_opts_from_config(cfg)` helper (Ruby: `self.mud_opts_from_config`,
+`private_class_method`— Python has no method-level privacy, leading
+underscore is the existing convention for "internal helper" in this
+codebase) returns `None` if `cfg.mud_host` or `cfg.mud_username` isn't
+set, otherwise a `dict` of connection options.
+
+```python
+def _mud_opts_from_config(cfg):
+    if not cfg.mud_host or not cfg.mud_username:
+        return None
+    return {
+        "host": cfg.mud_host,
+        "port": cfg.mud_port,
+        "name": cfg.mud_username,
+        "password": cfg.mud_password,
+    }
+```
+
+Both `run()` and `repl()` (fully duplicated per this codebase's
+established precedent — see `08`'s plan) get, right after `Context`/
+`Registry` construction:
+
+```python
+if working_dir:
+    file_system.register(registry, working_dir=working_dir)
+    shell.register(registry, working_dir=working_dir, timeout=shell_timeout, allowed_commands=allowed_commands)
+
+resolved_mud = None if mud is False else (mud or _mud_opts_from_config(cfg))
+if resolved_mud:
+    mud_tools.register(registry, **resolved_mud)
+```
+
+(`mud_tools` as the import alias for `boukensha.tools.mud`, to avoid
+shadowing the `mud=` parameter name in the same scope — Ruby has no such
+collision since `Tools::Mud` and the local `mud:` keyword arg live in
+different namespaces; Python's flat module-level `import` would collide
+without the alias.)
+
+`repl()`'s `Repl(...)` construction additionally passes `mud=resolved_mud`
+(matches Ruby passing it to `Repl.new(..., mud: resolved_mud)` for the
+banner's MUD-status line).
+
+## New for this step: `Repl` gains the MUD status banner line
+
+`boukensha/repl.py`'s `__init__` gains a `mud=None` parameter, `_banner()`
+gains a `mud:` line computed by `_mud_status_string()`/`_probe_mud(...)`
+— a **separate, short-lived** raw TCP connect-then-close purely to report
+reachability (explicitly not reusing the `Tools::Mud` session or
+attempting a login, to avoid a double-login on every banner render — same
+reasoning as Ruby's comment).
+
+```python
+def _mud_status_string(self):
+    if not self._mud:
+        return "(not configured)"
+    host = self._mud.get("host") or "localhost"
+    port = self._mud.get("port") or 4000
+    name = self._mud.get("name")
+    return f"{host}:{port}  {self._probe_mud(host, port, name)}"
+
+def _probe_mud(self, host, port, name):
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=3):
+            pass
+    except OSError:
+        return "✗ not reachable"
+    return "(Reachable)" if name and str(name).strip() else "(Reachable, no credentials)"
+```
+
+Ruby wraps the whole thing in a `rescue StandardError => e` returning
+`"✗ probe error: #{e.message}"` — the Python `except OSError` above
+already covers every realistic failure (`socket.create_connection`'s
+documented exception surface), so a broader bare `except Exception` catch
+mirroring Ruby's outer rescue is added around the whole method for
+parity, not because a specific new failure mode is expected:
+
+```python
+def _mud_status_string(self):
+    try:
+        if not self._mud:
+            return "(not configured)"
+        host = self._mud.get("host") or "localhost"
+        port = self._mud.get("port") or 4000
+        name = self._mud.get("name")
+        return f"{host}:{port}  {self._probe_mud(host, port, name)}"
+    except Exception as e:
+        return f"✗ probe error: {e}"
+```
+
+## Reference files (Ruby source of truth)
+
+| Ruby file | Role | Status |
+|---|---|---|
+| `lib/boukensha.rb` | Adds `working_dir:`/`allowed_commands:`/`shell_timeout:`/`mud:` to `run`/`repl`, `mud_opts_from_config` | New behavior |
+| `lib/boukensha/context.rb` | Adds `working_dir`; regression reapplied | New behavior + regression |
+| `lib/boukensha/repl.rb` | Adds `mud:`, MUD status banner line; regression reapplied | New behavior + regression |
+| `lib/boukensha/tools/file_system.rb` | **New.** Six sandboxed filesystem tools | New |
+| `lib/boukensha/tools/shell.rb` | **New.** `run_command`, includes the metacharacter-allow-list fix | New (+ fix) |
+| `lib/boukensha/tools/mud.rb` | **New.** ~24 MUD gameplay tools over `MudManager::Session`/`Primitives` | New |
+| `week0_explore/mud_manager/lib/mud_manager/session.rb` | Telnet session `Tools::Mud` depends on | Existing (external to this step, ported as `mud_session.py`) |
+| `week0_explore/mud_manager/lib/mud_manager/primitives.rb` | Command builders `Tools::Mud` depends on | Existing (subset ported as `mud_primitives.py`) |
+| `boukensha.gemspec` | Adds `mud_manager` dependency (doesn't resolve — fixed via `Gemfile` `path:` override) | No Python equivalent needed (see placement decision) |
+| `lib/boukensha/config.rb`, `client.rb`, `agent.rb`, `backends/anthropic.rb`, `backends/gemini.rb`, `prompt_builder.rb` | Standard regression set reapplied | Byte-identical to `09`'s *after* reapplying fixes — carries forward from `08`'s already-correct Python unchanged |
+| `lib/boukensha/errors.rb`, `message.rb`, `registry.rb`, `tool.rb`, `logger.rb`, `run_dsl.rb`, `version.rb` (bumped `0.10.0`), `tasks/base.rb`, `tasks/player.rb`, `backends/base.rb`, `backends/ollama.rb`, `backends/ollama_cloud.rb`, `backends/openai.rb` | — | Byte-identical to `09`'s (diffed, confirmed) |
+| `prompts/system.md` | — | Byte-identical (diffed, confirmed) |
+| `README.md` | Title/step-number and cross-reference drift ("step 9's WorkingDirectory" — no such module exists in `09_global_executable`) | Ported the real behavior, not the docs, same as every prior step |
+
+## Target directory layout
+
+```
+week1_baseline/python/10_standard_tool_library/
+  pyproject.toml / uv.lock / .python-version / .gitignore / README.md
+  prompts/system.md                    # carry forward from 08 (byte-identical)
+  boukensha/
+    __init__.py                        # add working_dir:/allowed_commands:/shell_timeout:/mud: to run()/repl(), _mud_opts_from_config
+    version.py                         # "0.10.0"
+    repl.py                            # carry forward from 08, add mud=/banner line
+    mud_session.py                     # NEW
+    mud_primitives.py                  # NEW
+    _module_state.py                   # carry forward from 08 (unchanged)
+    config.py                          # carry forward from 08 (unchanged -- already has the correct fixes)
+    errors.py                          # carry forward from 08 (unchanged)
+    context.py                         # carry forward from 08, add working_dir
+    client.py                          # carry forward from 08 (unchanged)
+    agent.py                           # carry forward from 08 (unchanged)
+    prompt_builder.py, run_dsl.py, registry.py, tool.py, message.py, logger.py   # carry forward from 08 (byte-identical Ruby source)
+    tasks/
+      __init__.py, base.py, player.py  # carry forward from 08 (byte-identical Ruby source)
+    backends/
+      __init__.py
+      base.py, anthropic.py, gemini.py, ollama.py, ollama_cloud.py, openai.py   # carry forward from 08 (already correct)
+    tools/
+      __init__.py                      # NEW (empty)
+      file_system.py                   # NEW
+      shell.py                         # NEW
+      mud.py                           # NEW
+  examples/
+    example.py                         # ported from examples/example.rb (or demo.rb if that's what 10 actually ships -- verify at implementation time)
+```
+
+## Acceptance test for this step
+
+Per the established precedent (04's negotiated bar for non-deterministic
+steps), this step has **two independently-testable halves**:
+
+1. **`Tools::FileSystem` + `Tools::Shell` — fully deterministic, byte/
+   behavior-diffable.** No live network calls. Verify with a scripted
+   local test: construct a `Context`/`Registry`, register both tool
+   modules against a temp directory, dispatch each of the 7 tools
+   directly (not through a live model call), assert exact output strings
+   match between Ruby and Python for the same inputs (including the
+   security-fix behavior: an `allowed_commands`-restricted `run_command`
+   rejects `"git status; echo INJECTED"` in both languages, identically).
+2. **`Tools::Mud` — inherently live and non-deterministic** (a real MUD
+   server, a real character with real state). Cannot be byte-diffed.
+   Verified the same way this session verified Ruby's `Tools::Mud` live:
+   one real connect-look-check round trip against the dedicated
+   `boukensha` test character (**not** `dummy`/`balthasar` — see
+   `docs/journal/1_week1.md`), confirming the tool registers, the
+   auto-connect succeeds, and at least `look`/`check`/`consider` return
+   real MUD output. Deterministic sub-parts (the `mud_primitives.py`
+   command-string builders, `mud_session.py`'s IAC-stripping) get direct
+   unit-style checks (e.g. `move("north").raw == "north"`,
+   `attack("kill", "rat").raw == "kill rat"`) without needing a live
+   connection.
+3. **`boukensha.run`/`.repl`'s full launcher-level parity** (steps 00-08's
+   usual bar) still applies for the *non-MUD* path — run both languages'
+   `examples/example.py`/`.rb` with `working_dir:` set and no `mud:`,
+   confirm matching tool-calling behavior against a shared scratch
+   directory.
+
+## New bin launchers
+
+```bash
+#!/usr/bin/env bash
+cd "$(dirname "$0")/../ruby/10_standard_tool_library"
+bundle exec ruby examples/example.rb
+```
+
+```bash
+#!/usr/bin/env bash
+cd "$(dirname "$0")/../python/10_standard_tool_library"
+uv run python examples/example.py
+```
+
+(Verify the Ruby step's actual example filename at implementation time —
+`README.md` references `examples/demo.rb`, which may not match what's
+actually in `examples/`; check before assuming, same as every README-drift
+precedent so far.)
+
+## `.gitignore`
+
+Same as prior steps: per-project `.gitignore` with `__pycache__/`/`*.pyc`.
+
+## Milestones / execution order
+
+1. Scaffold `week1_baseline/python/10_standard_tool_library/`
+   (`pyproject.toml`, `.python-version`, placeholder `README.md` + package
+   `__init__.py` stubs including `tools/__init__.py`, `uv sync`).
+2. Copy forward unchanged files from `08_the_repl_loop`: `errors.py`,
+   `prompt_builder.py`, `run_dsl.py`, `registry.py`, `tool.py`,
+   `message.py`, `logger.py`, `_module_state.py`, `config.py`, `client.py`,
+   `agent.py`, `tasks/{base,player}.py`,
+   `backends/{base,anthropic,gemini,ollama,ollama_cloud,openai}.py`.
+3. Copy forward `prompts/system.md` verbatim.
+4. Copy forward `context.py` from `08`, add `working_dir`.
+5. Write `boukensha/version.py` (`"0.10.0"`).
+6. Write `boukensha/mud_session.py`.
+7. Write `boukensha/mud_primitives.py`.
+8. Write `boukensha/tools/__init__.py` (empty), `file_system.py`,
+   `shell.py`, `mud.py`.
+9. Copy forward `repl.py` from `08`, add `mud=`/banner line.
+10. Update `boukensha/__init__.py`: `working_dir:`/`allowed_commands:`/
+    `shell_timeout:`/`mud:` on `run()`/`repl()`, `_mud_opts_from_config`,
+    tool registration wiring.
+11. Port `examples/example.py` (verify actual Ruby example filename
+    first).
+12. **Verification** per the three-part acceptance-test section above.
+13. Add the `bin/10_standard_tool_library`/`bin/10_standard_tool_library_python`
+    launchers, `chmod +x` both.
+14. Add the per-project `.gitignore`, verify with `git status --ignored`.
+15. Port the README (real behavior, not the "step 9's WorkingDirectory"
+    cross-reference or the `examples/demo.rb` filename, if those turn out
+    to be wrong).
+16. Run the `code-review` skill (medium effort) against the full diff —
+    pay special attention to `mud_session.py`'s threading/buffering logic
+    (the highest-risk new code this step introduces, and the piece least
+    covered by any deterministic test) and the shell-metacharacter fix's
+    completeness.
+
+No open questions — ready to implement.
