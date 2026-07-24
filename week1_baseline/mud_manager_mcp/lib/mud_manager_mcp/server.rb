@@ -20,6 +20,17 @@ module MudManagerMcp
   SESSION = MudManager::Session.new(host: HOST, port: PORT)
   P = MudManager::Primitives
 
+  # Serializes every command sent to the shared SESSION. Puma runs with
+  # its default multi-threaded config, and without this, two concurrent
+  # MCP tool calls' drain/send_command/read_until_prompt sequences can
+  # interleave on the same socket/buffer -- one thread's command gets
+  # another thread's response, silently, with no error raised. Found by
+  # code review, not live testing (needs real concurrent callers to
+  # trigger). A MUD session can only do one thing at a time anyway, so
+  # serializing here matches the actual resource's semantics, not just a
+  # workaround.
+  SESSION_MUTEX = Mutex.new
+
   def self.build_server
     # define_tool's block is instance_exec'd against an anonymous Tool
     # subclass (self changes), so module-level `def self.foo` methods are
@@ -29,9 +40,11 @@ module MudManagerMcp
     # capture lexically -- same pattern Tools::Mud.register already uses
     # (send_cmd/guard/oops as local lambdas, not module methods).
     send_cmd = lambda do |command|
-      SESSION.drain
-      SESSION.send_command(command)
-      SESSION.read_until_prompt
+      SESSION_MUTEX.synchronize do
+        SESSION.drain
+        SESSION.send_command(command)
+        SESSION.read_until_prompt
+      end
     end
 
     guard = lambda do
@@ -40,6 +53,25 @@ module MudManagerMcp
 
     text_response = lambda do |str|
       MCP::Tool::Response.new([{ type: "text", text: str.to_s }])
+    end
+
+    # Shared shape for every tool that sends one Primitives command and
+    # returns the result: guard -> build the command -> send it -> wrap
+    # errors. Was copy-pasted across 8 tool bodies (each only rescuing
+    # ArgumentError, and `flee` not even that) -- found by code review.
+    # Rescuing MudManager::Session::Error here too (not just
+    # ArgumentError) matters for real: the MUD connection can drop
+    # mid-call (documented as routine, 10s-few min, in this project's
+    # CLAUDE.md), which previously surfaced as a raw JSON-RPC "Internal
+    # error" instead of this file's normal "error: ..." text response.
+    run_primitive = lambda do |&build_command|
+      g = guard.call
+      next text_response.call(g) if g
+      begin
+        text_response.call(send_cmd.call(build_command.call))
+      rescue ArgumentError, MudManager::Session::Error => e
+        text_response.call("error: #{e.message}")
+      end
     end
 
     server = MCP::Server.new(
@@ -62,6 +94,17 @@ module MudManagerMcp
           welcome = SESSION.login(NAME, PASSWORD)
           text_response.call("connected to #{SESSION.host}:#{SESSION.port}\n#{welcome}")
         rescue MudManager::Session::Error => e
+          # A failed login (e.g. wrong password) leaves the socket open
+          # with Session#open? still true -- open? only reflects "socket
+          # connected," not "successfully authenticated." Without closing
+          # here, every future guard.call/mud_connect check would see
+          # open? == true and treat the session as usable, permanently
+          # stuck sending game commands into an unauthenticated
+          # login/menu prompt with no way to retry short of restarting
+          # the process. Closing restores the invariant the rest of this
+          # file assumes: open? == true means logged in, not just
+          # socket-connected. Found by code review.
+          SESSION.close if SESSION.open?
           text_response.call("error: #{e.message}")
         end
       end
@@ -99,13 +142,7 @@ module MudManagerMcp
         required: []
       }
     ) do |target: nil, preposition: nil, **_args|
-      g = guard.call
-      next text_response.call(g) if g
-      begin
-        text_response.call(send_cmd.call(P.look(target: target, preposition: preposition)))
-      rescue ArgumentError => e
-        text_response.call("error: #{e.message}")
-      end
+      run_primitive.call { P.look(target: target, preposition: preposition) }
     end
 
     server.define_tool(
@@ -113,13 +150,7 @@ module MudManagerMcp
       description: "Examine a target in detail (more verbose than look).",
       input_schema: { properties: { target: { type: "string", description: "The item, mob, or player to examine" } }, required: ["target"] }
     ) do |target:, **_args|
-      g = guard.call
-      next text_response.call(g) if g
-      begin
-        text_response.call(send_cmd.call(P.examine(target)))
-      rescue ArgumentError => e
-        text_response.call("error: #{e.message}")
-      end
+      run_primitive.call { P.examine(target) }
     end
 
     server.define_tool(
@@ -127,13 +158,7 @@ module MudManagerMcp
       description: "Query information about your character or surroundings. Kinds: score, inventory, equipment, gold, exits, time, weather, levels, wimpy, toggle, where.",
       input_schema: { properties: { kind: { type: "string", description: "What to check: score | inventory | equipment | gold | exits | time | weather | levels | wimpy | toggle | where" } }, required: ["kind"] }
     ) do |kind:, **_args|
-      g = guard.call
-      next text_response.call(g) if g
-      begin
-        text_response.call(send_cmd.call(P.info_self(kind)))
-      rescue ArgumentError => e
-        text_response.call("error: #{e.message}")
-      end
+      run_primitive.call { P.info_self(kind) }
     end
 
     server.define_tool(
@@ -141,13 +166,7 @@ module MudManagerMcp
       description: "Assess a mob's relative strength before engaging in combat. Returns a phrase such as 'You could kill it easily' or 'Death awaits you'. Always consider before attacking an unknown mob.",
       input_schema: { properties: { target: { type: "string", description: "Name of the mob to consider" } }, required: ["target"] }
     ) do |target:, **_args|
-      g = guard.call
-      next text_response.call(g) if g
-      begin
-        text_response.call(send_cmd.call(P.consider(target)))
-      rescue ArgumentError => e
-        text_response.call("error: #{e.message}")
-      end
+      run_primitive.call { P.consider(target) }
     end
 
     server.define_tool(
@@ -155,13 +174,7 @@ module MudManagerMcp
       description: "Move in a compass direction or up/down.",
       input_schema: { properties: { direction: { type: "string", description: "Direction: north | east | south | west | up | down" } }, required: ["direction"] }
     ) do |direction:, **_args|
-      g = guard.call
-      next text_response.call(g) if g
-      begin
-        text_response.call(send_cmd.call(P.move(direction)))
-      rescue ArgumentError => e
-        text_response.call("error: #{e.message}")
-      end
+      run_primitive.call { P.move(direction) }
     end
 
     server.define_tool(
@@ -169,9 +182,7 @@ module MudManagerMcp
       description: "Attempt to flee from combat in a random available direction.",
       input_schema: { properties: {}, required: [] }
     ) do |**_args|
-      g = guard.call
-      next text_response.call(g) if g
-      text_response.call(send_cmd.call(P.flee))
+      run_primitive.call { P.flee }
     end
 
     server.define_tool(
@@ -185,13 +196,7 @@ module MudManagerMcp
         required: ["target"]
       }
     ) do |target:, style: "kill", **_args|
-      g = guard.call
-      next text_response.call(g) if g
-      begin
-        text_response.call(send_cmd.call(P.attack(style, target)))
-      rescue ArgumentError => e
-        text_response.call("error: #{e.message}")
-      end
+      run_primitive.call { P.attack(style, target) }
     end
 
     server.define_tool(
@@ -206,13 +211,7 @@ module MudManagerMcp
         required: ["item"]
       }
     ) do |item:, container: nil, count: nil, **_args|
-      g = guard.call
-      next text_response.call(g) if g
-      begin
-        text_response.call(send_cmd.call(P.get(item, container: container, count: count)))
-      rescue ArgumentError => e
-        text_response.call("error: #{e.message}")
-      end
+      run_primitive.call { P.get(item, container: container, count: count) }
     end
 
     server.define_tool(
@@ -226,13 +225,7 @@ module MudManagerMcp
         required: ["text"]
       }
     ) do |text:, mode: "say", **_args|
-      g = guard.call
-      next text_response.call(g) if g
-      begin
-        text_response.call(send_cmd.call(P.say_local(mode, text)))
-      rescue ArgumentError => e
-        text_response.call("error: #{e.message}")
-      end
+      run_primitive.call { P.say_local(mode, text) }
     end
 
     server
@@ -245,6 +238,11 @@ module MudManagerMcp
     SESSION.login(NAME, PASSWORD)
     warn "[mud_manager_mcp] connected to #{SESSION.host}:#{SESSION.port} as #{NAME}"
   rescue MudManager::Session::Error => e
+    # Same close-on-failed-login fix as mud_connect above -- otherwise a
+    # bad MUD_PASSWORD at startup leaves the socket open-but-unauthenticated
+    # forever, with every tool call's guard.call silently treating it as
+    # usable.
+    SESSION.close if SESSION.open?
     warn "[mud_manager_mcp] MUD auto-connect failed: #{e.message} — call mud_connect manually"
   end
 end

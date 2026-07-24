@@ -20,12 +20,22 @@ import asyncio
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared.exceptions import McpError
 
 SERVER_URL = "http://localhost:8000/"
 
 
 async def call_tool(session: ClientSession, name: str, **arguments) -> str:
-    result = await session.call_tool(name, arguments)
+    # A server-side tool error (e.g. the MUD connection dropped mid-call)
+    # surfaces as an MCP-protocol-level error, not a normal CallToolResult
+    # -- session.call_tool() raises McpError rather than returning
+    # gracefully. Without this, an uncaught McpError crashes the whole
+    # script with a raw traceback instead of printing a readable message
+    # and letting the demo continue. Found by code review.
+    try:
+        result = await session.call_tool(name, arguments)
+    except McpError as e:
+        return f"[mcp error] {e}"
     return "\n".join(block.text for block in result.content if hasattr(block, "text"))
 
 
