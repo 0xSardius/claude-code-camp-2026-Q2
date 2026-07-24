@@ -12,8 +12,18 @@ module Boukensha
       @tools        = {}
     end
 
+    # Normalize to a string key regardless of caller. Registry#tool always
+    # passes a string (name.to_s), but register_tool is still public and
+    # callable directly (see 02_the_registry's README Considerations) --
+    # a Tool built with a symbol name (e.g. Tool.new(:look, ...))
+    # registered that way would otherwise land in @tools under a symbol
+    # key, silently breaking Registry#dispatch's string-keyed lookup for
+    # that tool even though tool_count reports it as present. Same fix as
+    # 02_the_registry (and its 01/03/04/05/06/07/08 backports/reapplications)
+    # -- reapplied here since this file's copy had regressed to the
+    # unfixed version (10th occurrence -- see docs/plans/python_port).
     def register_tool(tool)
-      @tools[tool.name] = tool
+      @tools[tool.name.to_s] = tool
     end
 
     def add_message(role, content, tool_use_id: nil)

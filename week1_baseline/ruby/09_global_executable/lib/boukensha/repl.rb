@@ -86,16 +86,19 @@ module Boukensha
     private
 
     def banner
-      ver = @version || "?.?.?"
+      key_status    = (@api_key.nil? || @api_key.strip.empty?) ? "✗ API key not set" : "✓ API key set"
+      provider_line = "#{@provider || "default"} (#{@model || "default"})  #{key_status}"
+      config_exists = @config_dir && Dir.exist?(@config_dir)
+      config_line   = config_exists ? @config_dir : "#{@config_dir || "(default)"}  ✗ directory not found"
+      ver           = @version || "?.?.?"
 
       <<~BANNER
 
         ╔══════════════════════════════════════╗
         ║  BOUKENSHA MUD Assistant (v#{ver})#{" " * (9 - ver.length)}║
         ╚══════════════════════════════════════╝
-          config:        #{@config_dir || "(default)"}
-          provider:      #{@provider || "(default)"}
-          model:         #{@model || "(default)"}
+          config:    #{config_line}
+          provider:  #{provider_line}
 
           /quiet or /loud   toggle logging
           /clear           reset conversation history
@@ -105,6 +108,15 @@ module Boukensha
     end
 
     def run_turn(input)
+      # rollback_point + truncating messages on failure fixes a real bug:
+      # without it, a failed turn leaves an orphaned user message with no
+      # assistant reply, so the NEXT turn's user message lands right after
+      # it -- two consecutive user-role messages, which the real API
+      # rejects, permanently breaking the session until /clear. Found
+      # while porting to Python (2026-07-24), reapplied here since this
+      # file's copy had regressed to the unfixed version.
+      rollback_point = @context.messages.size
+
       @turn += 1
       @logger.turn(n: @turn)
 
@@ -128,8 +140,10 @@ module Boukensha
       puts result
     rescue LoopError => e
       puts "\n[error] #{e.message}"
+      @context.messages.slice!(rollback_point..)
     rescue ApiError => e
       puts "\n[error] API call failed: #{e.message}"
+      @context.messages.slice!(rollback_point..)
     end
   end
 end

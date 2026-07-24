@@ -1,0 +1,62 @@
+# 09_global_executable — decision: no Python port
+
+Reviewed 2026-07-24. Decided (with the user) not to create
+`week1_baseline/python/09_global_executable/`.
+
+## Why
+
+Every step 00-08 is a literal architectural mirror: same classes, same
+method names, same behavior, ported line-by-line from Ruby. `09` breaks
+that premise — its entire content is RubyGems packaging mechanics
+(`boukensha.gemspec`, `bin/boukensha` shebang stub, `lib/boukensha_loader.rb`
+resolving `BOUKENSHA_PATH` / `~/.boukensharc` / a bundled default), not
+agent-loop code. There is no `lib/boukensha/*.rb` logic change in this step
+beyond the routine regression set (see below) — the actual new surface
+area is "how RubyGems installs a global executable," which has no Ruby
+source to mirror on the Python side. A Python equivalent (`pyproject.toml`
+entry points + `uv tool install`) would mean inventing new Python-specific
+packaging config from scratch, not translating this step's file — a
+different kind of exercise than every prior port, and not really "porting
+09" so much as "building a new, unrelated packaging story."
+
+## What was still done for 09 on the Ruby side
+
+Reviewed the step, then live-ran `bin/boukensha` end-to-end (piped stdin
+task + `/exit`, `BOUKENSHA_DIR` pointed at the repo-root `.boukensha/`)
+and fixed the regressions it surfaced — same standing set as every prior
+step, reapplied here:
+
+- `context.rb` — `register_tool` missing `.to_s` normalization (10th
+  occurrence).
+- `agent.rb` — tool-dispatch logging `begin/rescue/else` scope regressed
+  to a single `begin/rescue` (4th occurrence).
+- `backends/anthropic.rb` — `claude-sonnet-5` MODELS entry missing
+  (confirmed live: this is what actually crashed the first test run,
+  `UnsupportedModelError`); `to_messages(system, messages)` arity
+  regressed to single-arg, also fixed in `backends/gemini.rb` and
+  `prompt_builder.rb`.
+- `config.rb` — `PROMPTS_DIR` hop count regressed from `../../prompts` to
+  `../../../prompts` (one hop too many — inverse of the usual too-few-hops
+  bug); `resolve_dir`'s 3-tier fallback (env var → cwd `.boukensha/` →
+  home default, added in `08`) had collapsed back to a 2-tier
+  `ENV.fetch(...) || DEFAULT_DIR`, losing the cwd tier entirely.
+- `client.rb` — the friendly 401 "authentication failed — check your API
+  key" message (added in `08`) was gone.
+- `repl.rb` — the banner's `✓/✗ API key set` and `✗ directory not found`
+  checks (added in `08`) had regressed to a plainer 3-line dump; the
+  orphaned-message rollback fix (`rollback_point` + `slice!` in both
+  rescue clauses, the real bug found during `08`'s port) was gone
+  entirely.
+
+After fixes, `bin/boukensha` runs cleanly end-to-end: banner renders with
+the richer status checks, resolves `settings.yaml`/`.env` from
+`BOUKENSHA_DIR`, and completes a real turn against the Anthropic API.
+
+## If a Python port of "global executable" is wanted later
+
+Would need to be scoped as a new design question, not a mechanical port:
+what selects "which step" in Python (there's no single bundled default
+package the way the gem has one lib/ tree), whether `uv tool install`,
+`pipx`, or a plain `pyproject.toml` `[project.scripts]` entry point is the
+right mechanism, and whether `BOUKENSHA_PATH`/`~/.boukensharc`-style step
+switching is even a goal for the Python side. Not started.
