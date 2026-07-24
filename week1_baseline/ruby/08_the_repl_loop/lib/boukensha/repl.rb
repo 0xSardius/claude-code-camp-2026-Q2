@@ -108,6 +108,14 @@ module Boukensha
     end
 
     def run_turn(input)
+      # rollback_point + truncating messages on failure fixes a real bug:
+      # without it, a failed turn leaves an orphaned user message with no
+      # assistant reply, so the NEXT turn's user message lands right after
+      # it -- two consecutive user-role messages, which the real API
+      # rejects, permanently breaking the session until /clear. Found
+      # while porting to Python (2026-07-24), fixed here too.
+      rollback_point = @context.messages.size
+
       @turn += 1
       @logger.turn(n: @turn)
 
@@ -131,8 +139,10 @@ module Boukensha
       puts result
     rescue LoopError => e
       puts "\n[error] #{e.message}"
+      @context.messages.slice!(rollback_point..)
     rescue ApiError => e
       puts "\n[error] API call failed: #{e.message}"
+      @context.messages.slice!(rollback_point..)
     end
   end
 end
