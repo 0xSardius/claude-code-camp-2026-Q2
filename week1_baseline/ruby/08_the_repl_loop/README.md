@@ -17,8 +17,6 @@ The interactive session loop. Built-in commands:
 
 | Command | Effect |
 |---|---|
-| `/quiet` | Suppress logging output |
-| `/loud` | Re-enable logging output |
 | `/clear` | Wipe conversation history (tools stay registered) |
 | `/help` | Print the command list |
 | `/exit` / `/quit` | Leave the REPL |
