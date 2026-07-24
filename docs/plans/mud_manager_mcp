@@ -1,0 +1,136 @@
+# Plan — mud_manager_mcp (MCP layer over MudManager)
+
+## Goal
+
+Stand up a Ruby MCP server that wraps `week0_explore/mud_manager` (the
+`Session`/`Primitives` classes) and exposes MUD gameplay tools over MCP,
+plus a thin Python MCP client that drives it. Purpose: hands-on MCP
+experience as a fourth architecture to compare (same spirit as
+`week0_explore/explore_architecture/03_subagent_sdk` vs `02_agent_skills`
+— a new thing to learn from, not a fix for something broken), and a
+concrete first step toward the harness improvement discussed alongside it
+(a single owned MUD session other agents can share, rather than each
+language independently opening its own socket).
+
+**This is explicitly NOT a rewrite of anything that currently works.**
+`week1_baseline/ruby/10_standard_tool_library`'s `Tools::Mud` (using
+`mud_manager` directly, in-process) and
+`week1_baseline/python/10_standard_tool_library`'s `Tools::Mud` (using the
+hand-ported `mud_session.py`/`mud_primitives.py`, in-process) are
+untouched by this plan. Both keep working exactly as they do today,
+independent of whatever this produces.
+
+## Decisions locked in (this session, 2026-07-24)
+
+| Question | Decision | Why |
+|---|---|---|
+| Additive vs. replace existing `Tools::Mud` | **Additive only.** Nothing in either language's `10_standard_tool_library` changes. | Editing tested, working code (verified live this session, review-fixed) carries real regression risk for a learning exercise that doesn't need it. Migrating the existing tools onto MCP clients — which is what would actually unify session ownership — is a deliberate, separately-planned future step, not bundled here. |
+| Location | `week1_baseline/mud_manager_mcp/` — a new top-level sibling to `ruby/`, `python/`, `bin/`, **not** a numbered step. | `11`/`12` are already reserved (`11_tui`, `12_context`, not yet built). This isn't a Ruby-step port either (there's no Ruby "source" being ported to Python — Ruby *is* the server) — the numbered-step/port-plan methodology doesn't fit. `week1_baseline/log_viz/` is the existing precedent for a standalone support tool living directly under `week1_baseline/`, own `Gemfile`/`bin/`/`lib/`, outside the ruby/python/bin trio. |
+| MCP client language(s) for this pass | **Python only.** | Proves the actual value prop (Python driving MUD tools without reimplementing telnet/session logic) with the least new surface area. A same-language Ruby client, and true cross-language concurrent play, are natural follow-ups once this is proven out — not required to validate the architecture. |
+| Transport | **Streamable HTTP**, not stdio. | The point is a server that outlives any single client process (a prerequisite for ever becoming a shared session owner). stdio MCP servers are conventionally spawned as a child process per client (Claude Desktop's pattern) — that doesn't fit "one persistent server, independently-launched clients connect to it." |
+| Ruby MCP SDK | Official `mcp` gem (`modelcontextprotocol/ruby-sdk`, on RubyGems as `mcp`, ~4.3M downloads, supports stdio/SSE/streamable HTTP). | Verified to exist and be current as of 2026-07-24 — not assumed. |
+| Python MCP client SDK | Official `mcp` PyPI package, **pinned to the stable 1.x line**, not the 2.0.0a1/b1 pre-release (mid-rework for the 2026-07-28 spec revision as of this writing). | Avoid building a learning exercise on a moving pre-release target. |
+| Test character | The dedicated `boukensha` character (level 1 Warrior; same one `10_standard_tool_library`'s live MUD tests used), credentials in `.boukensha/mud_test_character.txt` (gitignored). **Not** `dummy` or `balthasar`. | Same reasoning as before — an early-stage exploration shouldn't risk either character's real accumulated progress. |
+| Tool surface for this first pass | A representative subset, not full ~24-tool parity with `Tools::Mud`: `mud_connect`, `mud_disconnect`, `mud_status`, `look`, `examine`, `check`, `consider`, `move`, `attack`, `flee`, `get_item`, `say`. | Enough to exercise connect → perceive → move → consider → fight → report, the exact loop already live-tested this session. Same registration pattern for the remaining ~12 tools — expanding to full parity is mechanical follow-up, not a design question, so not worth blocking this plan on deciding it now. |
+
+## Explicitly out of scope for this plan
+
+- Migrating `week1_baseline/ruby/10_standard_tool_library`'s or
+  `python/10_standard_tool_library`'s `Tools::Mud` onto the MCP client.
+  Session-ownership unification requires that migration and is a
+  separate, later, independently-reviewed step (see the risk discussion
+  in this session's transcript — that's the "replace" path, not the
+  "additive" one).
+- A Ruby MCP client.
+- Full tool parity with Ruby's `Tools::Mud` (~24 tools) — start with the
+  12 above, extend later.
+- Multi-character / multi-session management inside the MCP server (one
+  session, one character, for this pass — same scope as today's
+  `Tools::Mud` in either language).
+
+## Architecture
+
+```
+week1_baseline/mud_manager_mcp/
+  Gemfile                          # mcp gem + mud_manager path: dependency
+                                    # (same local-path-override pattern as
+                                    # 10_standard_tool_library's Gemfile fix
+                                    # -- mud_manager has never been published
+                                    # to RubyGems)
+  bin/mud_manager_mcp_server        # launches the server (streamable HTTP,
+                                     # a fixed local port)
+  lib/mud_manager_mcp/
+    server.rb                       # registers the 12 tools against one
+                                     # MudManager::Session, wraps
+                                     # MudManager::Primitives command
+                                     # builders -- same guard/send_cmd
+                                     # pattern as Tools::Mud, adapted to
+                                     # the mcp gem's tool-definition API
+  README.md
+  python_client/
+    pyproject.toml                  # uv-managed, depends on `mcp` (pinned
+                                     # 1.x) -- a separate small Python
+                                     # project, not nested inside
+                                     # week1_baseline/python/10_.../
+    example.py                      # connects to the running server,
+                                     # calls mud_connect/look/consider/move
+                                     # /attack, prints results -- proves
+                                     # the round trip without wiring MCP
+                                     # into boukensha's own Registry/Tool
+                                     # classes (that integration -- making
+                                     # an MCP tool dispatchable through
+                                     # boukensha.Registry -- is itself a
+                                     # follow-up, not required to prove
+                                     # the server works)
+```
+
+The server holds exactly one `MudManager::Session`, opened and logged in
+(as `boukensha`) once at server startup — analogous to `Tools::Mud`'s
+auto-connect-at-registration behavior, just now living in a process that
+outlives any one client's lifetime.
+
+## Verification plan
+
+Inherently live (a real MCP server, a real MUD connection, a real
+character) — same "can't byte-diff, verify with a real round trip"
+treatment as `04_api_client` and `10_standard_tool_library`'s `Tools::Mud`
+piece:
+
+1. Start `bin/mud_manager_mcp_server`, confirm it logs a successful
+   `boukensha` login and binds its HTTP port.
+2. Run `python_client/example.py`: connect over MCP, list available
+   tools (confirm all 12 are discoverable with correct schemas), call
+   `look`, `consider` on a target, `move`, `attack` if safe, `mud_status`.
+   Confirm real MUD output comes back through the MCP round trip.
+3. Confirm the server survives the client disconnecting and a second
+   client connecting later (proves the session outlives one client
+   process — the actual point of this exercise).
+4. Leave the character in a safe, sensible location and cleanly logged
+   out at the end (same discipline as every other live MUD test this
+   session), matching `.boukensha/mud_test_character.txt`'s notes.
+
+## Milestones
+
+1. Scaffold `week1_baseline/mud_manager_mcp/` (`Gemfile` with the
+   `mud_manager` path override, `bin/`, `lib/`, `README.md`).
+2. `bundle install`, confirm the `mcp` gem resolves.
+3. Write `lib/mud_manager_mcp/server.rb`: one `MudManager::Session`
+   opened at startup, the 12 tools registered against the `mcp` gem's
+   tool API, streamable HTTP transport on a fixed local port.
+4. Write `bin/mud_manager_mcp_server`, confirm it starts and logs in.
+5. Scaffold `python_client/` (`uv init`-style: `pyproject.toml` depending
+   on `mcp` pinned to 1.x, `.python-version`).
+6. Write `python_client/example.py`, run it against the live server per
+   the verification plan above.
+7. Write `README.md` documenting what this is, how to run both halves,
+   and explicitly noting the out-of-scope items above so nobody assumes
+   this replaced `Tools::Mud`.
+8. Code review (medium effort) before calling it done — same standing
+   practice as every other piece of working code this session, even
+   though this isn't a Ruby→Python port so the usual regression-checklist
+   won't apply; watch instead for: session/connection lifecycle bugs
+   (does the server's one session survive a client disconnect cleanly?),
+   MCP tool-schema correctness, and whether the Python client's error
+   handling degrades gracefully on a server-side MUD error vs. crashing.
+
+No open questions — ready to implement when you want to start.

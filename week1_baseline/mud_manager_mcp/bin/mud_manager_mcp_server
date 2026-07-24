@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+#
+# Runs the MudManager MCP server over Streamable HTTP. Requires
+# MUD_NAME/MUD_PASSWORD in the environment (see
+# .boukensha/mud_test_character.txt, gitignored, not sourced from here
+# directly -- pass explicitly, e.g.:
+#   MUD_NAME=boukensha MUD_PASSWORD=... bin/mud_manager_mcp_server
+#
+# MUD_HOST/MUD_PORT default to localhost:4000. MCP_HTTP_PORT (default 8000)
+# is the port this server itself listens on -- distinct from the MUD's own
+# port.
+
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__)
+require "mud_manager_mcp/server"
+require "rack"
+require "rackup"
+
+MudManagerMcp.connect!
+
+transport = MCP::Server::Transports::StreamableHTTPTransport.new(MudManagerMcp.build_server)
+
+rack_app = Rack::Builder.new do
+  use(Rack::CommonLogger)
+  use(Rack::ShowExceptions)
+  run(transport)
+end
+
+http_port = ENV.fetch("MCP_HTTP_PORT", "8000").to_i
+
+puts <<~MESSAGE
+  mud_manager_mcp server starting on http://localhost:#{http_port}/
+  MUD session: #{MudManagerMcp::HOST}:#{MudManagerMcp::PORT} as #{MudManagerMcp::NAME}
+  Press Ctrl+C to stop.
+MESSAGE
+
+Rackup::Handler.get("puma").run(rack_app, Port: http_port, Host: "localhost")

@@ -1,0 +1,10 @@
+source "https://rubygems.org"
+
+gem "mcp"
+gem "rackup"
+gem "puma"
+
+# mud_manager is this project's own reference telnet-session gem
+# (week0_explore/mud_manager) -- never published to rubygems.org, same
+# situation as 10_standard_tool_library's Gemfile fix.
+gem "mud_manager", path: "../../week0_explore/mud_manager"
