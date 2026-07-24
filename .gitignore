@@ -34,3 +34,7 @@ Gemfile.lock
 # not just a vendor/bundle at the repo root.
 **/vendor/bundle/
 .bundle/
+
+# Ruby: built gem packages (e.g. `gem build boukensha.gemspec` output) -
+# a build artifact, not source, same reasoning as vendor/bundle above.
+**/*.gem
