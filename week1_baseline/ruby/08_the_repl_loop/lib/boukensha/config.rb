@@ -10,7 +10,7 @@ module Boukensha
     DEFAULT_DIR = File.join(Dir.home, ".boukensha").freeze
 
     # Default prompts shipped alongside this step.
-    PROMPTS_DIR = File.expand_path("../../prompts", __dir__).freeze
+    PROMPTS_DIR = File.expand_path("../../../prompts", __dir__).freeze
 
     attr_reader :dir, :settings
 
@@ -73,8 +73,15 @@ module Boukensha
     private
 
     def resolve_dir
-      raw = ENV.fetch("BOUKENSHA_DIR", nil) || DEFAULT_DIR
-      Pathname.new(raw).expand_path.to_s
+      # 1. Explicit override
+      return Pathname.new(ENV["BOUKENSHA_DIR"]).expand_path.to_s if ENV["BOUKENSHA_DIR"]
+
+      # 2. .boukensha in the current working directory
+      cwd_dir = Pathname.new(Dir.pwd).join(".boukensha")
+      return cwd_dir.to_s if cwd_dir.directory?
+
+      # 3. ~/.boukensha default
+      Pathname.new(DEFAULT_DIR).expand_path.to_s
     end
 
     def load_env

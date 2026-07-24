@@ -49,6 +49,7 @@ module Boukensha
           text = extract_text(parsed[:content])
           log_response(text: text, response: response)
           @logger.turn_end(reason: "completed", iterations: @iteration)
+          @context.add_message(:assistant, text)
           return text
         end
       end
@@ -90,10 +91,12 @@ module Boukensha
       text     = fallback_message(reason) if text.strip.empty?
       log_response(text: text, response: response)
       @logger.turn_end(reason: reason, iterations: @iteration)
+      @context.add_message(:assistant, text)
       text
     rescue ApiError
       msg = fallback_message(reason)
       @logger.turn_end(reason: reason, iterations: @iteration)
+      @context.add_message(:assistant, msg)
       msg
     end
 
@@ -120,20 +123,12 @@ module Boukensha
         use_id = block["id"]
 
         @logger.tool_call(name: name, args: args)
-        # begin/rescue/else, not a single begin/rescue -- the success-path
-        # logger call must NOT be covered by the rescue, or a logging
-        # failure (e.g. disk I/O writing the session log) after a
-        # genuinely successful dispatch gets misreported to the model as a
-        # tool failure, discarding the real result. Found while porting
-        # 06_the_logger to Python (2026-07-23), reapplied here since this
-        # file's copy had regressed to the unfixed version.
         begin
           result = @registry.dispatch(name, args)
+          @logger.tool_result(name: name, result: result, ok: true)
         rescue StandardError => e
           result = "ERROR: #{e.class}: #{e.message}"
           @logger.tool_result(name: name, result: result, ok: false, error: e.message)
-        else
-          @logger.tool_result(name: name, result: result, ok: true)
         end
 
         @context.add_message(:tool_result, result.to_s, tool_use_id: use_id)
