@@ -17,13 +17,16 @@ keep climbing toward 7.
 
 - Name: Dummy
 - Class: Thief (level 4 title: "the Pick-Pocket")
-- Level: 4 (leveled up 2026-07-25; next sub-goal is level 5)
-- HP: 44/44 max (regenerates over time/rest)
-- Moves: not re-checked this session, was fine as of last save
-- Exp: 5018 (4982 more needed for level 5)
+- Level: 4 (leveled up 2026-07-25; next sub-goal is level 5, 2881 exp away)
+- HP: 57/57 max (level-up raised max HP from 44 to 57; currently full)
+- Moves: **3/93 — critically low**, next session should `rest`/`sleep`
+  before doing anything else to let it regenerate
+- Exp: 7119 (2881 more needed for level 5)
 - Practice sessions remaining: not re-checked this session — should have
   gained fresh ones from the level-4-up, worth practicing backstab further
-- Gold: 179
+- Gold: 346
+- Hungry again (no food eaten this session) — cheap fix at the Bakery next
+  time in town.
 - Wielding: a shiny newbie dagger (has a glowing aura, likely enchanted —
   swapped from the starting small sword; no way to confirm exact stats,
   thief has no identify). Have two more unwielded shiny newbie daggers now
@@ -55,10 +58,15 @@ keep climbing toward 7.
 
 ## Location
 
-Standing in: The Entrance To The Newbie Zone (south end of the hunting
-loop, exits n/w — see `world.md` for the full loop map). Logged out
-cleanly here 2026-07-25 (`save` confirmed: "Saving Dummy."), so this is
-exactly where the next session picks up.
+Standing in: **Behind The Temple Altar** (dirt path north of the Temple
+Altar, exits n/s — n continues toward The Great Field Of Midgaard, s back
+toward the Temple). Not the usual hunting-loop spot — an autonomous
+session ran out of per-turn budget mid-navigation back toward the Newbie
+Zone and got stranded here with very low movement points. Logged out
+2026-07-25 (`save` confirmed: "Saving Dummy.", done via a direct tool
+call after the in-character agent ran out of turn budget before reaching
+it itself — see progress log). Next session: `rest` first (moves are
+3/93), then continue north back to the Great Field / Newbie Zone loop.
 
 ## Inventory
 
@@ -240,6 +248,36 @@ exactly where the next session picks up.
   session, no flees needed. Net: 4445 -> 5018 exp (+573, crossing the
   level 4 threshold at 5000), **LEVEL 4** ("the Pick-Pocket"), 139 -> 179
   gold. Ended cleanly at The Entrance To The Newbie Zone, `save` confirmed.
+- 2026-07-25 (same day, follow-up session): pushed toward level 5 via the
+  same `week1_baseline/python/12_context` build, this time with a proper
+  scripted driver (real termination check against `score`'s own output,
+  not the agent's self-report) instead of a fixed list of turns. Found and
+  fixed a genuine, previously-undiscovered bug along the way:
+  `Context#compact_messages!`/`compact_messages()` in both Ruby and Python
+  drops the oldest 40% of messages by pure count with no awareness of
+  tool_use/tool_result pairing — when the cut landed between a tool call
+  and its result, the retained history started with an orphaned
+  tool_result, which the Anthropic API rejects outright (400). Since
+  compaction only trims the front and nothing repairs the middle, that one
+  bad cut permanently broke every turn after it (15 dead turns in a row,
+  first time this was ever hit — no earlier session ran long enough to
+  trigger real compaction under load). Fixed in both languages (skip past
+  any leading orphaned tool_result), verified live: two later compactions
+  in the same session both continued working normally afterward. Session
+  net: 5018 -> 7119 exp (+2101), 179 -> 346 gold, HP max increased from 44
+  to 57 at some point in the level-4 range (both still full at session
+  end). **Did not reach level 5** (2881 exp still short) — the known
+  hunting loop ran dry for a long stretch (8 consecutive turns with zero
+  exp near the end), suggesting it's genuinely farmed out for now rather
+  than broken; worth trying again after mobs have had real time to
+  respawn, or expanding to the clueless-newbie pocket near The South
+  Stairs next time. Ended NOT at a hunting-loop spot — an autonomous turn
+  ran out of its per-turn token budget mid-navigation back toward the
+  Newbie Zone and got stranded at Behind The Temple Altar with movement
+  points nearly depleted (3/93). `save` was completed via a direct tool
+  call after the in-character agent couldn't reach it itself in the turns
+  it had left — real progress is safely persisted, just not exactly where
+  a full in-character session would have chosen to stop.
 
 ## Next steps
 
@@ -249,11 +287,17 @@ exactly where the next session picks up.
   server-side state is shared across every architecture that plays as
   this character — this file is a cache of `score`, not owned by any one
   architecture. See `docs/journal/1_week1.md` for the full writeup.
-- Now level 4, 4982 exp needed for level 5. Keep farming the reliable safe
-  spawns
-  ("creepy crawling thing" = perfect/easy match, the "newbie monster" /
-  "looking terribly confused" -> "clueless newbie" variants = easy/fairly
-  easy). Always `consider` first regardless of flavor text.
+- Now level 4, 2881 exp needed for level 5 (was 4982, +2101 gained
+  2026-07-25's follow-up session). **Rest first** — moves are at 3/93,
+  critically low, standing at Behind The Temple Altar (not the usual
+  hunting spot). Walk north back to the Great Field / Newbie Zone once
+  moves recover. Keep farming the reliable safe spawns ("creepy crawling
+  thing" = perfect/easy match, the "newbie monster" / "looking terribly
+  confused" -> "clueless newbie" variants = easy/fairly easy). Always
+  `consider` first regardless of flavor text. The main loop ran dry for a
+  long stretch at the end of the last session (8 turns, zero kills) — if
+  that recurs quickly, it may still be farmed out; the clueless-newbie
+  pocket near The South Stairs is untried this go and worth a look.
 - The zombiefied newbie (670 exp, in The Hallway) is still the best payout
   in the zone if found, but it did NOT respawn at all during a full
   2026-07-18 session of repeated laps — its respawn timer may be much

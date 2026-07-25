@@ -75,6 +75,22 @@ class Context:
     def compact_messages(self, target_fraction: float = 0.60) -> int:
         drop_count = min(math.ceil(len(self.messages) * 0.40), len(self.messages) - 2)
         drop_count = max(drop_count, 0)
+        # Never leave an orphaned tool_result as the first retained
+        # message. A plain count-based cut has no idea whether it lands
+        # between a tool_use and its tool_result -- if it does, the
+        # retained history starts with a tool_result that has no matching
+        # tool_use anywhere in the (now-truncated) conversation, which the
+        # API rejects outright (400: "tool_result.tool_use_id: Input
+        # should be a valid string" / no matching tool_use). Since
+        # compaction only ever trims the front and nothing ever repairs
+        # the middle, one bad cut permanently poisons every future call
+        # in the session -- found live (not by review or a short playtest):
+        # a real multi-turn grind session hit this exactly once and every
+        # turn after it failed instantly, forever, until the session was
+        # restarted. Advance past any leading tool_result(s) -- they're
+        # orphaned by definition once their preceding tool_use is dropped.
+        while drop_count < len(self.messages) and self.messages[drop_count].role == "tool_result":
+            drop_count += 1
         self.messages = self.messages[drop_count:]
         self.current_tokens = 0
         return drop_count

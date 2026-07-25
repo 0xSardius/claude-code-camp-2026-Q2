@@ -66,6 +66,21 @@ module Boukensha
     def compact_messages!(target_fraction: 0.60)
       drop_count = [(@messages.size * 0.40).ceil, @messages.size - 2].min
       drop_count = [drop_count, 0].max
+      # Never leave an orphaned tool_result as the first retained message.
+      # A plain count-based cut has no idea whether it lands between a
+      # tool_use and its tool_result -- if it does, the retained history
+      # starts with a tool_result that has no matching tool_use anywhere
+      # in the (now-truncated) conversation, which the API rejects
+      # outright (400: tool_result.tool_use_id invalid / no matching
+      # tool_use). Since compaction only ever trims the front and nothing
+      # ever repairs the middle, one bad cut permanently poisons every
+      # future call in the session -- found live (not by review or a
+      # short playtest): a real multi-turn grind session hit this exactly
+      # once and every turn after it failed instantly, forever, until the
+      # session was restarted. Advance past any leading tool_result(s) --
+      # they're orphaned by definition once their preceding tool_use is
+      # dropped.
+      drop_count += 1 while drop_count < @messages.size && @messages[drop_count].role == :tool_result
       @messages = @messages.drop(drop_count)
       @current_tokens = 0
       drop_count
