@@ -22,8 +22,15 @@ from dotenv import load_dotenv
 class Config:
     # The .boukensha config directory is resolved in this order:
     #   1. BOUKENSHA_DIR environment variable
-    #   2. .boukensha/ in the current working directory
-    #   3. ~/.boukensha  (default)
+    #   2. ~/.boukensha  (default)
+    #
+    # 11_tui had a third tier (.boukensha/ in the current working
+    # directory) -- Ruby's 12_context config.rb#resolve_dir dropped it
+    # entirely (a real behavior change, not comment churn; confirmed via
+    # diff against 11_tui's config.rb). This port initially kept the old
+    # 3-tier logic by mistake (the port plan incorrectly claimed
+    # resolve_dir was unchanged) -- found by code review (CONFIRMED) and
+    # fixed to match Ruby's 2-tier version exactly.
     DEFAULT_DIR = str(Path.home() / ".boukensha")
 
     def __init__(self) -> None:
@@ -112,15 +119,10 @@ class Config:
     # ---------- private -----------------------------------------------------
 
     def _resolve_dir(self) -> str:
-        env_value = os.environ.get("BOUKENSHA_DIR")
-        if env_value is not None:
-            return str(Path(env_value).expanduser().resolve())
-
-        cwd_dir = Path.cwd() / ".boukensha"
-        if cwd_dir.is_dir():
-            return str(cwd_dir)
-
-        return str(Path(self.DEFAULT_DIR).expanduser().resolve())
+        raw = os.environ.get("BOUKENSHA_DIR")
+        if raw is None:
+            raw = self.DEFAULT_DIR
+        return str(Path(raw).expanduser().resolve())
 
     def _load_env(self) -> None:
         env_file = Path(self.dir) / ".env"

@@ -134,3 +134,51 @@ piece:
    handling degrades gracefully on a server-side MUD error vs. crashing.
 
 No open questions — ready to implement when you want to start.
+
+## Final decision (2026-07-25): additive-only, for good
+
+Revisited at the end of week1, once `12_context` (the last Ruby/Python
+port step) was done and the question became "how do we integrate MCP
+once and for all" rather than "how do we integrate MCP for this specific
+plan." Conclusion: **additive-only is the final architecture for
+week1, not a placeholder pending a later harmonization pass.**
+`Tools::Mud`/`tools/mud.py` remain the primary, single-agent MUD-tool
+path in both languages; `mud_manager_mcp` stays exactly as built —
+proven, tested, living alongside them.
+
+**Why not go further and migrate `Tools::Mud` onto MCP clients**
+(the "harmonization" path this plan always flagged as a separate,
+deliberately-deferred step):
+
+- The one thing MCP harmonization actually buys — a single MUD session
+  multiple agent *processes* can share — has no live use case in week1.
+  Every real session so far (`dummy`, `balthasar`, the `boukensha` test
+  character) has been one agent process per character, never multiple
+  processes sharing one login. Even the concurrency exploration in
+  `week0_explore/explore_architecture/03_subagent_sdk` ran two
+  *different* characters concurrently, each with its own independent
+  session — not the same session shared.
+- The migration would touch the single most heavily-used, most
+  real-progress-bearing code path in the whole project (everything
+  `dummy`'s actual leveling has run through), for a benefit that isn't
+  exercised. It would also add a hard runtime dependency (the MCP
+  server must already be running before any agent can play) and a
+  second layer that can independently drop, on top of the MUD's own
+  already-unpredictable disconnects.
+- Sequencing made this concrete rather than hypothetical: this decision
+  was made right before a live leveling playtest of the Python
+  TUI/REPL build. Rewriting the MUD-tool path immediately beforehand
+  would have put that playtest's success at direct risk for an
+  architectural nicety with no exercised payoff.
+- This tracks the user's own week1 retro note (`docs/journal/1_week1.md`)
+  that the earlier mid-flight MCP-driven refactor discussion "introduced
+  enormous complexity for comparatively little value," and that the
+  better throughline would have been incremental, need-driven MCP
+  adoption rather than a wholesale architecture change.
+
+**What would change this decision**: a real, concrete need for multiple
+agent processes (same or different language) to share one MUD login
+simultaneously — e.g. a week2 revisit of multi-agent concurrency that
+specifically wants shared-session semantics rather than independent
+characters. Until then, this file describes a finished, standalone
+exploration, not a pending migration.

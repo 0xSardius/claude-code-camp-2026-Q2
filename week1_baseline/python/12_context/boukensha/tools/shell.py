@@ -29,7 +29,15 @@ def register(registry, *, working_dir, timeout=30, allowed_commands=None):
         # single string argument), so checking only the first token isn't
         # enough on its own -- reject shell metacharacters too so the
         # allow-list can't be chained past.
-        if allowed_commands:
+        #
+        # `is not None`, not a bare truthy check: Ruby's `if allowed_commands`
+        # is true for an explicitly empty [] (only nil/false are falsy in
+        # Ruby) -- an empty allow-list means "block everything". A Python
+        # `if allowed_commands:` is False for [], which would skip this
+        # entire guard and let every command run unrestricted -- the
+        # opposite of what an empty allow-list is supposed to mean. Found
+        # by code review (CONFIRMED, a real security-relevant divergence).
+        if allowed_commands is not None:
             if _METACHARS.search(str(command)):
                 return oops(
                     "command contains shell metacharacters (; & | > < ` $ or a newline), "
@@ -72,7 +80,12 @@ def register(registry, *, working_dir, timeout=30, allowed_commands=None):
         output = result.stdout.decode("utf-8", errors="replace").strip()
         return f"(no output){exit_note}" if not output else f"{output}{exit_note}"
 
-    allow_note = f" Allowed executables: {', '.join(str(c) for c in allowed_commands)}." if allowed_commands else ""
+    # Same is-not-None reasoning as the guard above: Ruby's `if allowed_commands`
+    # is true for [] too (empty-but-set), producing " Allowed executables: .";
+    # a bare Python truthy check would silently drop the note for that case.
+    allow_note = (
+        f" Allowed executables: {', '.join(str(c) for c in allowed_commands)}." if allowed_commands is not None else ""
+    )
     registry.tool(
         "run_command",
         description=(

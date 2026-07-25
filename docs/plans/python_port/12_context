@@ -125,10 +125,24 @@ class Config:
 ```
 
 Notes:
-- `resolve_dir`'s 3-tier fallback (env var → cwd `.boukensha/` → home
-  default) is **unchanged** from `11_tui` — this step's Ruby diff for
-  `config.rb`'s `resolve_dir` only showed comment-formatting churn, not a
-  real regression (confirmed by direct re-read, not assumed).
+- **Correction (found by code review, post-implementation):** the claim
+  below that `resolve_dir` is unchanged from `11_tui` was **wrong** — the
+  original re-read that produced this note missed a real behavior change.
+  Ruby's `12_context/config.rb#resolve_dir` actually dropped the cwd
+  `.boukensha/` tier entirely: `raw = ENV.fetch("BOUKENSHA_DIR", nil) ||
+  DEFAULT_DIR` is a 2-tier fallback (env var → home default only), not
+  the 3-tier version `11_tui` had. The shipped `config.py` initially kept
+  the old 3-tier logic verbatim, which the code review flagged as
+  CONFIRMED (a real acceptance-test-breaking parity gap, not just a
+  missed comment) and which has since been fixed to match Ruby's 2-tier
+  version exactly. Original (incorrect) note preserved below for the
+  record, not deleted, since the mistake itself — "confirmed by direct
+  re-read" turning out to be wrong — is worth keeping visible:
+
+  > `resolve_dir`'s 3-tier fallback (env var → cwd `.boukensha/` → home
+  > default) is **unchanged** from `11_tui` — this step's Ruby diff for
+  > `config.rb`'s `resolve_dir` only showed comment-formatting churn, not
+  > a real regression (confirmed by direct re-read, not assumed).
 - `system_override()` is ported even though it's dead code in Ruby too
   (`_load_system_prompt` checks a different, hardcoded key path directly)
   — same "port declared-but-unused faithfully" precedent as `LoopError`.

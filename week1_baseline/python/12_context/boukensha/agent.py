@@ -122,7 +122,18 @@ class Agent:
         self._context.update_tokens(tokens["input"])
 
     def _usage_tokens(self, response):
-        usage = response.get("usage") or response.get("usageMetadata") or response
+        # Ruby: `response["usage"] || response["usageMetadata"] || response`
+        # -- `||` only falls through on nil/false, so a present-but-empty
+        # {} usage dict is KEPT, not skipped. A bare Python `or` chain
+        # treats {} as falsy and falls all the way through to the raw
+        # response, picking up wrong keys. Explicit None-checks, not `or`
+        # -- found by code review (CONFIRMED), the exact gotcha this
+        # method's restoration was supposed to guard against.
+        usage = response.get("usage")
+        if usage is None:
+            usage = response.get("usageMetadata")
+        if usage is None:
+            usage = response
         return {
             "input": self._first_integer(usage, "input_tokens", "prompt_tokens", "promptTokenCount", "prompt_eval_count"),
             "output": self._first_integer(usage, "output_tokens", "completion_tokens", "candidatesTokenCount", "eval_count"),
@@ -156,7 +167,11 @@ class Agent:
             if text.strip() == "":
                 text = self._fallback_message(reason)
             self._record_usage(response)
-            self._log_reasoning(parsed_wrap["content"])
+            # No _log_reasoning call here -- Ruby's wrap_up never makes one
+            # (only run()'s main loop does). Found by code review
+            # (CONFIRMED): an extra call here logged a spurious "reasoning"
+            # event whenever the wind-down call returned reasoning content,
+            # breaking the byte-for-byte transcript parity with Ruby.
             self._logger.response(text=text, usage=response.get("usage"), stop_reason=parsed_wrap["stop_reason"])
             self._logger.turn_end(reason=reason, iterations=self._iteration, tokens=self._context.turn_tokens)
             self._context.add_message("assistant", text)

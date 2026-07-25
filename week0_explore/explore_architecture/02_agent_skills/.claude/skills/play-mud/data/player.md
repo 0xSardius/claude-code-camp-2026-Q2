@@ -9,20 +9,21 @@ from zero context each time.
 ## Current goal
 
 Reach level 7, then find and fight the massive Minotaur in the Newbie Zone
-(see `week0_explore/CHALLENGES.md`). Sub-goals "reach level 2" and "reach
-level 3" are DONE — next sub-goal is level 4, then keep climbing toward 7.
+(see `week0_explore/CHALLENGES.md`). Sub-goals "reach level 2", "reach
+level 3", and "reach level 4" are DONE — next sub-goal is level 5, then
+keep climbing toward 7.
 
 ## Character
 
 - Name: Dummy
-- Class: Thief (level 3 title: "the Filcher")
-- Level: 3 (leveled up 2026-07-17; next sub-goal is level 4)
+- Class: Thief (level 4 title: "the Pick-Pocket")
+- Level: 4 (leveled up 2026-07-25; next sub-goal is level 5)
 - HP: 44/44 max (regenerates over time/rest)
-- Moves: 51/90 — fine, not a concern
-- Exp: 4445 (**555 more needed for level 4** — very close)
-- Practice sessions remaining: **0** (both spent on backstab; more will
-  come with the next level-up)
-- Gold: 139
+- Moves: not re-checked this session, was fine as of last save
+- Exp: 5018 (4982 more needed for level 5)
+- Practice sessions remaining: not re-checked this session — should have
+  gained fresh ones from the level-4-up, worth practicing backstab further
+- Gold: 179
 - Wielding: a shiny newbie dagger (has a glowing aura, likely enchanted —
   swapped from the starting small sword; no way to confirm exact stats,
   thief has no identify). Have two more unwielded shiny newbie daggers now
@@ -54,11 +55,10 @@ level 3" are DONE — next sub-goal is level 4, then keep climbing toward 7.
 
 ## Location
 
-Standing in: The End Of The Passage, Newbie Zone (west end of the main
-hallway loop, near the field exit) — see `world.md` for the path back to
-Midgaard/the guild if needed. Logged out cleanly here 2026-07-18 (`save`
-confirmed, then `mud.py stop`), so this is exactly where the next session
-picks up.
+Standing in: The Entrance To The Newbie Zone (south end of the hunting
+loop, exits n/w — see `world.md` for the full loop map). Logged out
+cleanly here 2026-07-25 (`save` confirmed: "Saving Dummy."), so this is
+exactly where the next session picks up.
 
 ## Inventory
 
@@ -226,11 +226,31 @@ picks up.
   `mud.py stop` for a clean logout. Net this session (including the
   market/AC-audit detour): 3730 -> 4445 exp (+715), 313 -> 139 gold
   (net -174 after the scroll/ale purchases and all the loot from grinding).
+- 2026-07-25: **Not a play-mud skill session** — played via
+  `week1_baseline/python/12_context`'s `Repl` class instead, as a live
+  end-to-end verification playtest for that build (part of wrapping up
+  week1_baseline). The agent had no persistent map memory of its own (this
+  skill's `world.md` isn't visible to that architecture), so the first
+  attempt wandered out of the Newbie Zone entirely with zero progress —
+  fixed by embedding this file's/`world.md`'s known hunting-loop map
+  directly into the task prompt, after which navigation worked cleanly for
+  the rest of the session. Farmed the standard loop (creepy crawlers,
+  newbie monsters, one quasit-like imp in More Of The Hallway, all
+  `consider`ed safe first), never dropped below full HP the entire
+  session, no flees needed. Net: 4445 -> 5018 exp (+573, crossing the
+  level 4 threshold at 5000), **LEVEL 4** ("the Pick-Pocket"), 139 -> 179
+  gold. Ended cleanly at The Entrance To The Newbie Zone, `save` confirmed.
 
 ## Next steps
 
-- 555 exp needed for level 4 — very close, should take just 2-4 more easy
-  kills next session. Keep farming the reliable safe spawns
+- 2026-07-25: Session driven by `week1_baseline/python/12_context` (the
+  hand-rolled agent-loop project, NOT this play-mud skill) as a live
+  leveling playtest for that build. Noting it here since Dummy's real
+  server-side state is shared across every architecture that plays as
+  this character — this file is a cache of `score`, not owned by any one
+  architecture. See `docs/journal/1_week1.md` for the full writeup.
+- Now level 4, 4982 exp needed for level 5. Keep farming the reliable safe
+  spawns
   ("creepy crawling thing" = perfect/easy match, the "newbie monster" /
   "looking terribly confused" -> "clueless newbie" variants = easy/fairly
   easy). Always `consider` first regardless of flavor text.
