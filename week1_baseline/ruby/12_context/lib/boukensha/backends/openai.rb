@@ -59,7 +59,7 @@ module Boukensha
             parameters: {
               type: "object",
               properties: tool.parameters,
-              required: tool.parameters.keys.map(&:to_s)
+              required: tool.required_params
             }
           }
         end

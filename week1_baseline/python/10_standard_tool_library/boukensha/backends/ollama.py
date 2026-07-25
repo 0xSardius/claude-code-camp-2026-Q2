@@ -83,7 +83,7 @@ class Ollama(Base):
                     "parameters": {
                         "type": "object",
                         "properties": tool.parameters,
-                        "required": list(tool.parameters.keys()),
+                        "required": tool.required_params(),
                     },
                 },
             }

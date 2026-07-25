@@ -61,6 +61,7 @@ module Boukensha
         elapsed:            0,
         current_action:     "idle",
         iteration:          0,
+        max_iterations:     Agent::MAX_ITERATIONS,
         tool_call_count:    0,
         turn_input_tokens:  0,
         turn_output_tokens: 0
@@ -149,7 +150,7 @@ module Boukensha
         frame  = SPINNER_FRAMES[@live[:spinner_idx]]
         action = @live[:current_action]
         iter   = @live[:iteration]
-        max    = Agent::MAX_ITERATIONS
+        max    = @live[:max_iterations]
         secs   = @live[:elapsed].to_i
         itok   = fmt_tokens(@live[:turn_input_tokens])
         otok   = fmt_tokens(@live[:turn_output_tokens])
@@ -264,6 +265,7 @@ module Boukensha
         elapsed:            0,
         current_action:     "Thinking…",
         iteration:          0,
+        max_iterations:     Agent::MAX_ITERATIONS,
         tool_call_count:    0,
         turn_input_tokens:  0,
         turn_output_tokens: 0
@@ -295,6 +297,12 @@ module Boukensha
       case phase.to_s
       when "iteration"
         @live[:iteration]      = (event[:n] || event["n"]).to_i
+        # Real configured ceiling for THIS agent (Config#agent_max_iterations
+        # via Repl#run_turn), not the Agent::MAX_ITERATIONS class default --
+        # a real bug found by code review (TUI always showed /25 regardless
+        # of settings.yaml's agent.max_iterations).
+        max_from_event          = event[:max] || event["max"]
+        @live[:max_iterations]  = max_from_event.to_i if max_from_event
         @live[:current_action] = "Thinking…"
 
       when "tool_call"

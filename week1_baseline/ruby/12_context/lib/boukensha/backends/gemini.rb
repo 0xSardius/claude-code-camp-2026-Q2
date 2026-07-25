@@ -28,7 +28,7 @@ module Boukensha
         configure_model(model)
       end
 
-      def to_messages(messages)
+      def to_messages(system, messages)
         messages.map do |msg|
           case msg.role
           when :assistant
@@ -60,7 +60,7 @@ module Boukensha
               parameters: {
                 type: "object",
                 properties: tool.parameters,
-                required: tool.parameters.keys.map(&:to_s)
+                required: tool.required_params
               }
             }
           end
@@ -70,7 +70,7 @@ module Boukensha
       def to_payload(context, max_output_tokens: 1024, tools: nil)
         {
           systemInstruction: { parts: [{ text: context.system }] },
-          contents: to_messages(context.messages),
+          contents: to_messages(context.system, context.messages),
           tools: tools.nil? ? to_tools(context.tools) : tools,
           generationConfig: {
             maxOutputTokens: max_output_tokens,

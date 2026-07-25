@@ -82,7 +82,7 @@ class Gemini(Base):
                         "parameters": {
                             "type": "object",
                             "properties": tool.parameters,
-                            "required": list(tool.parameters.keys()),
+                            "required": tool.required_params(),
                         },
                     }
                     for tool in tools.values()

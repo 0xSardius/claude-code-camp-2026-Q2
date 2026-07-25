@@ -85,10 +85,45 @@ module Boukensha
     # budget) and refresh the known context size from input_tokens (compaction
     # pressure). The trigger is evaluated on pre-wrap-up spend; the reported
     # total includes the wind-down call too.
+    #
+    # Only reads response["usage"]["input_tokens"]/["output_tokens"] --
+    # Anthropic's field names. Gemini's usage lives under "usageMetadata"
+    # (promptTokenCount/candidatesTokenCount) and Ollama's under
+    # prompt_eval_count/eval_count at the top level, not "usage" at all --
+    # for those providers this silently read nothing, leaving
+    # current_tokens at 0 forever, so needs_compaction? never trips no
+    # matter how full the real context window gets. A genuine bug, not
+    # scope-narrowing (Agent has no provider-specific logic anywhere else
+    # -- PromptBuilder/backends already normalize everything else about a
+    # response into one common shape). Restored the multi-provider field
+    # lookup this step's Logger simplification incidentally dropped along
+    # with the (deliberately-removed) cost-estimation code it lived
+    # inside of.
     def record_usage(response)
-      usage = response["usage"] || {}
-      @context.add_turn_tokens(usage["input_tokens"], usage["output_tokens"])
-      @context.update_tokens(usage["input_tokens"].to_i)
+      tokens = usage_tokens(response)
+      @context.add_turn_tokens(tokens[:input], tokens[:output])
+      @context.update_tokens(tokens[:input])
+    end
+
+    def usage_tokens(response)
+      usage = response["usage"] || response["usageMetadata"] || response
+      {
+        input:  first_integer(usage, "input_tokens", "prompt_tokens", "promptTokenCount", "prompt_eval_count"),
+        output: first_integer(usage, "output_tokens", "completion_tokens", "candidatesTokenCount", "eval_count")
+      }
+    end
+
+    # Same shape as 06_the_logger's Logger#first_integer -- nil (not 0) on
+    # a missing/unparseable value; Context#add_turn_tokens/#update_tokens
+    # already tolerate nil via to_i, same as their Ruby callers always have.
+    def first_integer(hash, *keys)
+      keys.each do |key|
+        value = hash[key] || hash[key.to_sym]
+        return Integer(value) unless value.nil?
+      end
+      nil
+    rescue ArgumentError, TypeError
+      nil
     end
 
     def compact_if_needed
@@ -164,12 +199,16 @@ module Boukensha
         use_id = block["id"]
 
         @logger.tool_call(name: name, args: args)
+        # begin/rescue/else -- see docs/plans/python_port (7th regression
+        # of this fix). The success-path logger call must not be covered
+        # by the rescue.
         begin
           result = @registry.dispatch(name, args)
-          @logger.tool_result(name: name, result: result, ok: true)
         rescue StandardError => e
           result = "ERROR: #{e.class}: #{e.message}"
           @logger.tool_result(name: name, result: result, ok: false, error: e.message)
+        else
+          @logger.tool_result(name: name, result: result, ok: true)
         end
 
         @context.add_message(:tool_result, result.to_s, tool_use_id: use_id)

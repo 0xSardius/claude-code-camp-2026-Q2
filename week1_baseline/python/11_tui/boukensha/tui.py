@@ -173,6 +173,14 @@ class Tui(App):
 
         if phase == "iteration":
             self._live["iteration"] = int(event.get("n") or 0)
+            # Real configured ceiling for THIS agent (from settings.yaml
+            # via Repl.run_turn's max_iterations), not the Agent.MAX_ITERATIONS
+            # class default -- a real bug found by code review (the progress
+            # line always showed /25 regardless of the actual configured
+            # value). Ported from the same fix applied to the Ruby source.
+            max_from_event = event.get("max")
+            if max_from_event is not None:
+                self._live["max_iterations"] = int(max_from_event)
             self._live["current_action"] = "Thinking…"
         elif phase == "tool_call":
             self._live["current_action"] = f"Calling tool: {event.get('name')}"
@@ -210,9 +218,10 @@ class Tui(App):
             otok = self._fmt_tokens(self._live["turn_output_tokens"])
             calls = self._live["tool_call_count"]
             iteration = self._live["iteration"]
+            max_iterations = self._live["max_iterations"]
             bar.update(
                 f"{frame} {self._live['current_action']}  "
-                f"(iter {iteration}/{Agent.MAX_ITERATIONS} · {secs}s · "
+                f"(iter {iteration}/{max_iterations} · {secs}s · "
                 f"↑ {itok} · ↓ {otok} · {calls} calls)"
             )
         else:
@@ -236,6 +245,7 @@ class Tui(App):
             "elapsed": 0,
             "current_action": "idle",
             "iteration": 0,
+            "max_iterations": Agent.MAX_ITERATIONS,
             "tool_call_count": 0,
             "turn_input_tokens": 0,
             "turn_output_tokens": 0,

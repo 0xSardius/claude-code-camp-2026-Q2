@@ -72,7 +72,7 @@ class Anthropic(Base):
                 "input_schema": {
                     "type": "object",
                     "properties": tool.parameters,
-                    "required": list(tool.parameters.keys()),
+                    "required": tool.required_params(),
                 },
             }
             for tool in tools.values()

@@ -18,8 +18,10 @@ module Boukensha
       @turn_tokens          = 0
     end
 
+    # Normalize to a string key regardless of caller -- see docs/plans/python_port
+    # for the full history (13th occurrence of this regression).
     def register_tool(tool)
-      @tools[tool.name] = tool
+      @tools[tool.name.to_s] = tool
     end
 
     def add_message(role, content, tool_use_id: nil)

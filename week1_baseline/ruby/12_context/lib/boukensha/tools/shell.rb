@@ -38,8 +38,15 @@ module Boukensha
             command: { type: "string", description: "The shell command to execute (e.g. 'ruby script.rb', 'ls -la', 'git status')" }
           } do |command:|
 
-          # Guard: check the first token against the allow-list when one is set
+          # Guard: check the first token against the allow-list when one is
+          # set. command runs via a shell (Open3.capture2e with a single
+          # string argument), so checking only the first token isn't
+          # enough on its own -- reject shell metacharacters too.
           if allowed_commands
+            if command.to_s =~ /[;&|><`$\n]|\$\(/
+              next oops.call("command contains shell metacharacters (; & | > < ` $ or a newline), which is not allowed when an allowed-commands list is set")
+            end
+
             executable = command.to_s.strip.split(/\s+/).first.to_s
             unless allowed_commands.map(&:to_s).include?(executable)
               next oops.call("'#{executable}' is not in the allowed-commands list (#{allowed_commands.join(', ')})")

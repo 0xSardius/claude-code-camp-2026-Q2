@@ -26,6 +26,11 @@ module Boukensha
           context_window: 1_000_000,
           cost_per_million: { input: 5.0, output: 25.0 },
           usage_unit: :tokens
+        },
+        "claude-sonnet-5" => {
+          context_window: 1_000_000,
+          cost_per_million: { input: 3.0, output: 15.0 },
+          usage_unit: :tokens
         }
       }.freeze
 
@@ -34,7 +39,7 @@ module Boukensha
         configure_model(model)
       end
 
-      def to_messages(messages)
+      def to_messages(system, messages)
         messages.map do |msg|
           case msg.role
           when :tool_result
@@ -62,7 +67,7 @@ module Boukensha
             input_schema: {
               type: "object",
               properties: tool.parameters,
-              required: tool.parameters.keys.map(&:to_s)
+              required: tool.required_params
             }
           }
         end
@@ -74,7 +79,7 @@ module Boukensha
           system: context.system,
           max_tokens: max_output_tokens,
           tools: tools.nil? ? to_tools(context.tools) : tools,
-          messages: to_messages(context.messages)
+          messages: to_messages(context.system, context.messages)
         }
       end
 
