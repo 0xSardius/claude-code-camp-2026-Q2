@@ -164,14 +164,42 @@ class Session:
                     raise ConnectionError("socket closed while waiting")
                 self._cv.wait(remaining)
 
-    def read_until_prompt(self, timeout: float | None = None) -> str:
-        try:
-            return self.read_until(self.PROMPT_SENTINEL, timeout=timeout)
-        except SessionTimeout:
-            # Falls back to draining the buffer if the prompt is never seen
-            # within the timeout (e.g. during combat when extra async
-            # lines may slip in).
-            return self.drain()
+    # "> " is not unique to CircleMUD's trailing status prompt -- found
+    # live (2026-07-26): the `equipment` command's bracketed slot labels
+    # (e.g. "<used as light> ") can end in the exact same two-character
+    # sequence, well before the real prompt arrives. A bare first-match
+    # read_until stopped there, silently truncating every line the server
+    # sent afterward (the rest of the equipment listing never reached the
+    # caller). Fixed by requiring a short quiet window after the sentinel
+    # is seen: if more bytes keep arriving right after a "> " match, it
+    # wasn't the real end of the response yet, so keep waiting instead of
+    # trusting the first occurrence. Mirrors read_until_quiet's own
+    # quiet-window loop shape, just gated on the sentinel being present
+    # too rather than requiring quiet unconditionally. Falls back to
+    # draining the buffer if the prompt is never seen within the timeout
+    # (e.g. during combat when extra async lines may slip in).
+    def read_until_prompt(self, timeout: float | None = None, quiet_seconds: float = 0.3) -> str:
+        if not self.is_open():
+            raise SessionError("session not open")
+        deadline = time.monotonic() + (timeout if timeout is not None else self._timeout)
+        with self._lock:
+            while True:
+                remaining_total = deadline - time.monotonic()
+                if remaining_total <= 0:
+                    break
+                has_sentinel = self.PROMPT_SENTINEL in self._buffer
+                if has_sentinel and self._last_recv_at is not None and (time.monotonic() - self._last_recv_at) >= quiet_seconds:
+                    break
+                if has_sentinel and self._last_recv_at is not None:
+                    wait_for = quiet_seconds - (time.monotonic() - self._last_recv_at)
+                else:
+                    wait_for = remaining_total
+                wait_for = min(wait_for, remaining_total)
+                if wait_for <= 0:
+                    break
+                self._cv.wait(wait_for)
+            out, self._buffer = self._buffer, ""
+            return out
 
     # Walk the CircleMUD login dance for an EXISTING account. No
     # new-character-creation flow -- Ruby's mud_manager doesn't implement

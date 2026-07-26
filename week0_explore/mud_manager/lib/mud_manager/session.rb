@@ -154,15 +154,48 @@ module MudManager
     # deterministic than relying on a silence window — it returns as soon as
     # the server signals it has finished processing the command.
     #
+    # BUT "> " is not unique to that trailing status prompt — found live
+    # (2026-07-26): the `equipment` command's bracketed slot labels (e.g.
+    # "<used as light> ") can end in the exact same two-character sequence,
+    # well before the real prompt arrives. A bare first-match read_until
+    # stopped there, silently truncating every line the server sent
+    # afterward (the rest of the equipment listing never reached the
+    # caller). Fixed by requiring a short quiet window after the sentinel
+    # is seen: if more bytes keep arriving right after a "> " match, it
+    # wasn't the real end of the response yet, so keep waiting instead of
+    # trusting the first occurrence. Mirrors read_until_quiet's own
+    # quiet-window loop shape, just gated on the sentinel being present
+    # too rather than requiring quiet unconditionally.
+    #
     # Falls back to draining the buffer if the prompt is never seen within
     # the timeout (e.g. during combat when extra async lines may slip in).
     PROMPT_SENTINEL = "> "
 
-    def read_until_prompt(timeout: nil)
-      read_until(PROMPT_SENTINEL, timeout: timeout)
-    rescue Timeout
-      warn "[MudManager::Session] prompt not detected within timeout; returning buffered content"
-      drain
+    def read_until_prompt(timeout: nil, quiet_seconds: 0.3)
+      raise Error, "session not open" unless open?
+      deadline = monotime + (timeout || @timeout)
+      @buffer_mu.synchronize do
+        loop do
+          remaining_total = deadline - monotime
+          break if remaining_total <= 0
+
+          has_sentinel = @buffer.include?(PROMPT_SENTINEL)
+          if has_sentinel && @last_recv_at && (monotime - @last_recv_at) >= quiet_seconds
+            break
+          end
+
+          wait_for = if has_sentinel && @last_recv_at
+                       quiet_seconds - (monotime - @last_recv_at)
+                     else
+                       remaining_total
+                     end
+          wait_for = [wait_for, remaining_total].min
+          break if wait_for <= 0
+          @buffer_cv.wait(@buffer_mu, wait_for)
+        end
+        out, @buffer = @buffer, String.new.force_encoding(Encoding::UTF_8)
+        out
+      end
     end
 
     # Walk the CircleMUD login dance:

@@ -258,6 +258,28 @@ reasoning:
   that needed it (`set -a; source .env; set +a; <command>`) rather than
   `cat`/`grep` the file or write the value into any tracked or
   logged/echoed location. "You can use X" is not "you can display X."
+- **A prompt/end-of-response sentinel that's "usually unique" isn't
+  actually unique — this bit `MudManager::Session#read_until_prompt`
+  live (2026-07-26).** CircleMUD's real trailing status prompt ends in
+  `"> "`, so `week0_explore/mud_manager`'s `Session` (the shared Ruby gem
+  every `Tools::Mud`/`mud_manager_mcp` uses, and the vendored Python
+  `mud_session.py` in every `week1_baseline/python/*` step) waits for that
+  literal substring to know a command's response is complete. But other
+  game text can contain the same two characters well before the real
+  prompt — the `equipment` command's `<used as light>` slot label (no
+  item name after it for that slot) ends in `"> "` too, so the reader
+  stopped there and silently discarded every line the server sent
+  afterward. Only surfaced when the discarded content actually mattered
+  (an equipment listing missing every line but one); simpler command
+  outputs never happened to collide with the sentinel, so this went
+  unnoticed since `10_standard_tool_library`. Fixed in both languages by
+  requiring a short quiet window after the sentinel is seen — if more
+  bytes keep arriving right after a `"> "` match, it wasn't the real
+  prompt yet. General lesson: a "wait for this substring" parser is only
+  as safe as how unlikely that substring is to appear in the *body* of
+  what you're waiting past, not just at the true end — worth a second
+  look anywhere else this project waits on a short, generic literal
+  rather than a more specific pattern.
 
 ## week0_explore: architecture comparison findings
 

@@ -27,24 +27,41 @@ keep climbing toward 7.
 - Gold: 346
 - Hungry again (no food eaten this session) — cheap fix at the Bakery next
   time in town.
-- Wielding: a shiny newbie dagger (has a glowing aura, likely enchanted —
-  swapped from the starting small sword; no way to confirm exact stats,
-  thief has no identify). Have two more unwielded shiny newbie daggers now
-  (3 total, third one looted 2026-07-18) — spares/sell fodder. **Confirmed
-  2026-07-18: this MUD build does not support dual-wielding** — `wield`
-  only allows one weapon ("You're already wielding a weapon"), no
-  dual-wield skill exists on the Thief tree (`help skills` shows:
-  Sneak/Pick Lock/Backstab/Steal/Hide/Track only), and the DUALWIELD help
-  topic is an unimplemented stub.
+- **Full equipment, re-verified 2026-07-26 (see Progress log — a `check
+  equipment` display bug was masking most of this for who knows how long;
+  this is the first fully-accurate reading)**:
+  - light: a candle
+  - fingers (x2): a leather ring, a leather ring
+  - neck (x2): a leather gorget, a leather gorget
+  - body: a breast plate
+  - head: a leather cap
+  - legs: a pair of bronze leggings (an upgrade over plain leather —
+    unclear when this was acquired, not in earlier notes)
+  - feet: a pair of leather boots
+  - hands: a pair of leather gloves
+  - arms: a pair of leather sleeves
+  - shield: a shield
+  - about body: a brown leather cape
+  - waist: an old leather belt
+  - wrists (x2): a leather wristguard, a leather wristguard
+  - wielded: a shiny newbie dagger (glowing aura)
+  - held: a metal staff
+  - Confirmed 2026-07-18: this MUD build does not support dual-wielding —
+    `wield` only allows one weapon, no dual-wield skill on the Thief tree,
+    DUALWIELD help topic is an unimplemented stub.
+- **Unequipped spares in inventory** (correctly left unworn — current
+  gear in those slots is already decent): 3x shiny newbie dagger spares,
+  a glowing newbie mace, some cool newbie leggings, some cool newbie
+  sleeves, 3x bright green newbie vest, a small sword.
 - **A scroll of recall** (bought 2026-07-18, 243g) — `recite scroll of
   recall` teleports back to hometown sanctuary. Emergency-escape backup
   now that we know `flee` can fail once before succeeding. Not yet tested
   in an actual emergency.
-- **AC audit (2026-07-18, real tested numbers, not guesses)**: baseline
-  AC 9/10 with full gear on. Leather gloves = -3 AC, leather sleeves =
-  -2 AC, leather cap = -6 AC, breast plate = **-21 AC** (by far our
-  biggest piece). See Next steps for what this means for future Armory
-  purchases.
+- **AC audit (2026-07-18) is STALE** — it was done before the equipment
+  display bug was found/fixed and only tested 4 of the ~14 worn slots
+  (gloves/sleeves/cap/breast plate). Worth redoing properly now that
+  `check equipment` actually shows everything — the shield/cape/rings/
+  gorget/wristguards/staff were never individually measured.
 
 ## Skills known
 
@@ -278,6 +295,28 @@ it itself — see progress log). Next session: `rest` first (moves are
   call after the in-character agent couldn't reach it itself in the turns
   it had left — real progress is safely persisted, just not exactly where
   a full in-character session would have chosen to stop.
+- 2026-07-26: A follow-up shopping trip (still via `week1_baseline`, not
+  this skill) tried to buy an equipment upgrade and got confusing
+  results — `check equipment` only ever showed a single line ("You are
+  using: <used as light>"), yet the game rejected every `wear`/`wield`
+  attempt with "already wearing/wielding" for every slot tried. Root
+  cause found and fixed: `MudManager::Session#read_until_prompt` (the
+  shared Ruby gem at `week0_explore/mud_manager`, and the vendored Python
+  port used by every `week1_baseline/python/*` step) detects the end of a
+  command's response by waiting for the literal two-character sequence
+  "> " — but that sequence isn't unique to the real trailing status
+  prompt. The `equipment` command's own `<used as light>` slot label ends
+  in "> " too (bracket-close, then a space, nothing after it for that
+  slot), so the reader stopped right there and silently discarded every
+  other line the server sent afterward. Fixed by requiring a short quiet
+  window after the sentinel is seen (if more bytes keep arriving right
+  after a "> " match, it wasn't the real prompt yet) in both languages,
+  verified live in both. **Real outcome: nothing was ever actually lost or
+  wrong in-game** — Dummy has been fully, extensively equipped this whole
+  time (14 slots, far more than these notes ever recorded — see Character
+  section above for the corrected full list). The AC audit and equipment
+  notes from 2026-07-18 onward were all working from an incomplete
+  picture; the character itself was fine.
 
 ## Next steps
 
