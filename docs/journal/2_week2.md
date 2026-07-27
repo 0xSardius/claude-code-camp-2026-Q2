@@ -99,6 +99,29 @@ other characters.
   caching on, not after. Also found the price table stale for the model
   actually in use (`claude-sonnet-5` is on introductory pricing through
   2026-08-31, so a naive cost re-connect would report ~50% high).
+- Scaffolded `week2_capable/` from `week1_baseline/python/12_context`
+  (2026-07-27). The `BOUKENSHA_DIR` path-math gotcha showed up immediately and
+  in the *opposite* direction from every previous occurrence: week 1's steps
+  all needed 4 `.parent` hops and repeatedly shipped with 3, but
+  `week2_capable/python/examples/` sits one level shallower, so 3 is now
+  correct and copying the known-good week 1 line forward would have overshot
+  past the repo root. A gotcha memorized as a *value* ("it should be 4") rather
+  than as a *procedure* ("recount the hops") would have caused the bug it was
+  written to prevent — worth noting given how much of this project's checklist
+  is phrased as values.
+- Confirmed the stale-pricing concern empirically rather than leaving it as an
+  assertion: `estimate_cost(1M in, 1M out)` on the forked build returns
+  **$18.00**, which is the table's `3.0/15.0`, where Sonnet 5's introductory
+  rate would give $12.00. So the cost-reconnect milestone starts from a number
+  that is ~50% high, and would have quietly reported inflated spend for the
+  whole week if it had shipped as a pure re-wire.
+- Kept all 26 modules' `Port of week1_baseline/ruby/...` docstrings rather than
+  rewriting them for the fork. They're stale as *instructions* but accurate as
+  *provenance*, and they carry the load-bearing reasoning (the Ruby/Python
+  semantic gaps, why a given method is shaped the way it is) that the gotchas
+  list depends on. Resolved with one package-level note in `__init__.py`
+  declaring the mirror retired, instead of a 26-file rewrite that would have
+  destroyed more knowledge than it cleaned up.
 
 ## Technical Conclusions
 <!-- Written at the end of the week. -->
