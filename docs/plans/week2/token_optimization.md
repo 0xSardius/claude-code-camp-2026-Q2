@@ -34,6 +34,29 @@ Extracted from the 25 committed session logs — 404 responses carrying `usage`:
 
 Consequence: **M2 is the only load-bearing milestone here.** M3–M5 are cleanup.
 
+### Caching is a capability fix, not just a cost one (found 2026-07-27, phase 2)
+
+The session reporter, run over the same logs, turned up what the cost numbers
+alone had hidden:
+
+| | |
+|---|---|
+| Turns ending `completed` | 12 |
+| Turns ending `max_tokens` | **56** |
+| Input tokens per turn | ~59,890 |
+| `agent.max_turn_tokens` default | 60,000 |
+
+**82% of turns were cut off by the spend ceiling and forced into a wind-down**,
+because ~11,562 input tokens per response × 4.7 iterations per turn lands
+almost exactly on the budget. The budget was being consumed by re-sending the
+conversation rather than by doing work.
+
+Since `max_turn_tokens` is a *spend* ceiling, the turn budget is charged
+billable input only (`Agent._record_usage`) — so cache reads stop consuming it.
+Caching should therefore convert most of those 56 truncated turns into turns
+that finish. That makes M2 an autonomy fix as much as a cost fix, and it is the
+strongest single argument for doing it next.
+
 ## The levers, largest first
 
 ### 1. Prompt caching (Anthropic) — expected to dominate

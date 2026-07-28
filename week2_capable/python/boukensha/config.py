@@ -89,8 +89,14 @@ class Config:
         return 25 if v is None else int(v)
 
     def agent_max_output_tokens(self) -> int:
+        # Raised 1024 -> 4096 (week2). `max_tokens` is a ceiling on thinking
+        # PLUS response text, and adaptive thinking is now requested on models
+        # that support it -- so the old ceiling became materially tighter at
+        # the same moment truncation stopped being silently reclassified as a
+        # completed turn. Costs nothing to raise: you are billed for tokens
+        # actually produced, not for the cap.
         v = self.dig("agent", "max_output_tokens")
-        return 1024 if v is None else int(v)
+        return 4096 if v is None else int(v)
 
     def agent_max_turn_tokens(self) -> int:
         v = self.dig("agent", "max_turn_tokens")

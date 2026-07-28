@@ -77,12 +77,43 @@ class Base:
     def usage_level(self):
         return self.model_info.get("usage_level")
 
-    def estimate_cost(self, *, input_tokens, output_tokens):
+    # Cached tokens are not priced like fresh input. Multipliers are against
+    # the model's own input rate: a read is ~0.1x, a write ~1.25x at the
+    # default 5-minute TTL (~2x at 1h, which this project doesn't use).
+    #
+    # This matters more than it looks. An estimate_cost() that ignored the
+    # cache fields would overstate spend *most* exactly when caching is working
+    # best -- which would make the token pillar's whole reason for existing
+    # look like a regression on the very dashboard meant to prove it worked.
+    CACHE_READ_MULTIPLIER = 0.1
+    CACHE_WRITE_MULTIPLIER = 1.25
+
+    def estimate_cost(self, *, input_tokens, output_tokens, cache_read_tokens=0, cache_write_tokens=0):
         in_cost = self.input_token_cost_per_million
         out_cost = self.output_token_cost_per_million
         if in_cost is None or out_cost is None:
             return None
-        return ((input_tokens * in_cost) + (output_tokens * out_cost)) / 1_000_000.0
+        # None and 0 both mean "no tokens of this kind" for a token count, so
+        # `or 0` is safe here -- unlike the falsy-vs-None cases elsewhere in
+        # this codebase, there is no valid falsy value with a different meaning.
+        billed = (
+            (input_tokens or 0) * in_cost
+            + (output_tokens or 0) * out_cost
+            + (cache_read_tokens or 0) * in_cost * self.CACHE_READ_MULTIPLIER
+            + (cache_write_tokens or 0) * in_cost * self.CACHE_WRITE_MULTIPLIER
+        )
+        return billed / 1_000_000.0
+
+    @property
+    def supports_thinking(self):
+        """Whether this model accepts `thinking: {"type": "adaptive"}`.
+
+        Data-driven off MODELS rather than a name check: adaptive thinking is
+        a 4.6-and-later feature, and sending it to a model that predates it is
+        a 400, not a graceful no-op. Absent key => don't send it.
+        """
+        info = self.model_info or {}
+        return bool(info.get("thinking"))
 
     def _configure_model(self, model) -> None:
         self.model = self.__class__.validate_model(model)

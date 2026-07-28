@@ -1,3 +1,8 @@
 #!/usr/bin/env bash
 cd "$(dirname "$0")/../python"
-uv run python tests/test_hooks.py
+fail=0
+for t in tests/test_*.py; do
+  echo "--- $t"
+  uv run python "$t" || fail=1
+done
+exit $fail

@@ -132,11 +132,23 @@ class Agent:
             if parsed["stop_reason"] == "tool_use":
                 self._handle_tool_calls(parsed["content"], response)
             else:
+                truncated = parsed["stop_reason"] == "max_tokens"
+                if truncated:
+                    self._note_truncation(response)
+
                 text = self._extract_text(parsed["content"])
-                self._logger.response(text=text, usage=response.get("usage"), stop_reason=parsed["stop_reason"])
-                self._logger.turn_end(reason="completed", iterations=self._iteration, tokens=self._context.turn_tokens)
+                self._logger.response(
+                    text=text, usage=response.get("usage"), stop_reason=parsed["stop_reason"],
+                    **self._cost_fields(response),
+                )
+                # The partial text is still added and returned -- it is better
+                # than nothing and the model can be asked to continue -- but the
+                # turn is reported as "truncated", not "completed", so downstream
+                # consumers (and after_turn handlers) can tell the difference.
+                reason = "truncated" if truncated else "completed"
+                self._logger.turn_end(reason=reason, iterations=self._iteration, tokens=self._context.turn_tokens)
                 self._context.add_message("assistant", text)
-                return self._finish_turn(text, reason="completed")
+                return self._finish_turn(text, reason=reason)
 
     def _iteration_limit_reached(self):
         return self._max_iterations > 0 and self._iteration >= self._max_iterations
@@ -160,8 +172,38 @@ class Agent:
     # real context window gets.
     def _record_usage(self, response):
         tokens = self._usage_tokens(response)
-        self._context.add_turn_tokens(tokens["input"], tokens["output"])
-        self._context.update_tokens(tokens["input"])
+        # max_turn_tokens is a SPEND ceiling (see this class's docstring), so
+        # the turn budget is charged the billable input only -- cache reads are
+        # deliberately excluded. With caching off, billable_input == the old
+        # input_tokens, so this is a no-op today; with caching on it stops the
+        # budget being eaten by tokens we barely pay for.
+        #
+        # That interaction matters more than it sounds. Measured over the
+        # committed week1 logs: ~59,890 input tokens per turn against a 60,000
+        # default ceiling, and 56 of 68 recorded turns ended on `max_tokens`
+        # rather than `completed`. The budget was being consumed by re-sending
+        # the conversation, not by doing work -- so turns were being cut off
+        # mid-task. Caching should convert most of those into completed turns,
+        # which makes it a capability fix and not only a cost one.
+        #
+        # Simplification accepted: cache reads DO still cost ~0.1x, so charging
+        # them at zero slightly under-counts spend. Weighting them is not worth
+        # the complexity until the reporter shows it mattering.
+        self._context.add_turn_tokens(tokens["billable_input"], tokens["output"])
+        # CACHE-AWARE (week2, and a real bug fix): `usage.input_tokens` is the
+        # UNCACHED REMAINDER only -- the true prompt size is
+        # input + cache_creation + cache_read. Passing the remainder here means
+        # that the moment prompt caching is enabled, current_tokens collapses to
+        # a small number, usage_fraction collapses with it, and
+        # needs_compaction() stops firing no matter how full the real context
+        # window gets. A long run then dies of a full window with no error to
+        # point at.
+        #
+        # Same failure shape as the multi-provider usage-fallback bug this
+        # method's own comment already documents (without which current_tokens
+        # silently stays 0 for non-Anthropic backends) -- arriving by a new
+        # route. Landed BEFORE caching is switched on, deliberately.
+        self._context.update_tokens(tokens["context_size"])
 
     def _usage_tokens(self, response):
         # Ruby: `response["usage"] || response["usageMetadata"] || response`
@@ -176,9 +218,22 @@ class Agent:
             usage = response.get("usageMetadata")
         if usage is None:
             usage = response
+        fresh_input = self._first_integer(usage, "input_tokens", "prompt_tokens", "promptTokenCount", "prompt_eval_count")
+        output = self._first_integer(usage, "output_tokens", "completion_tokens", "candidatesTokenCount", "eval_count")
+        cache_read = self._first_integer(usage, "cache_read_input_tokens")
+        cache_write = self._first_integer(usage, "cache_creation_input_tokens")
+
+        # Three different numbers, kept apart on purpose -- conflating any two
+        # of them produces a plausible-looking wrong answer:
+        #   context_size    what the model actually READ (drives compaction)
+        #   billable_input  what we PAY full rate for (drives the spend budget)
+        #   cache_*         priced separately (0.1x read / 1.25x write)
         return {
-            "input": self._first_integer(usage, "input_tokens", "prompt_tokens", "promptTokenCount", "prompt_eval_count"),
-            "output": self._first_integer(usage, "output_tokens", "completion_tokens", "candidatesTokenCount", "eval_count"),
+            "billable_input": fresh_input,
+            "output": output,
+            "cache_read": cache_read,
+            "cache_write": cache_write,
+            "context_size": (fresh_input or 0) + (cache_read or 0) + (cache_write or 0),
         }
 
     def _first_integer(self, d, *keys):
@@ -190,6 +245,46 @@ class Agent:
                 except (ValueError, TypeError):
                     return None
         return None
+
+    # Everything Logger.response needs to record cost alongside usage. Kept in
+    # one place so the four response() call sites can't drift apart on it.
+    #
+    # estimate_cost returns None when the model's rates are unknown (Ollama,
+    # or an unpriced entry) -- reported as None rather than 0.0, because "free"
+    # and "unknown" are different facts and a dashboard that renders unknown as
+    # $0.00 quietly under-reports.
+    def _cost_fields(self, response):
+        backend = getattr(self._builder, "backend", None)
+        if backend is None:
+            return {}
+        tokens = self._usage_tokens(response)
+        try:
+            cost = backend.estimate_cost(
+                input_tokens=tokens["billable_input"],
+                output_tokens=tokens["output"],
+                cache_read_tokens=tokens["cache_read"],
+                cache_write_tokens=tokens["cache_write"],
+            )
+        except Exception:  # noqa: BLE001 -- cost reporting must never break a turn
+            cost = None
+        return {
+            "cost": cost,
+            "provider": type(backend).__name__.lower(),
+            "model": getattr(backend, "model", None),
+            "usage_unit": getattr(backend, "usage_unit", None),
+        }
+
+    # The API cut the response off at the token ceiling. Logged loudly rather
+    # than acted on: at the measured rate (1 of 404 responses in the week1
+    # logs) retry machinery would be more risk than the problem. Once it is
+    # visible we will have real data on whether that rate climbs.
+    def _note_truncation(self, response):
+        tokens = self._usage_tokens(response)
+        self._logger.truncated(
+            iteration=self._iteration,
+            output_tokens=tokens["output"],
+            max_output_tokens=self._max_output_tokens,
+        )
 
     def _compact_if_needed(self):
         if not self._context.needs_compaction():
@@ -214,7 +309,10 @@ class Agent:
             # (CONFIRMED): an extra call here logged a spurious "reasoning"
             # event whenever the wind-down call returned reasoning content,
             # breaking the byte-for-byte transcript parity with Ruby.
-            self._logger.response(text=text, usage=response.get("usage"), stop_reason=parsed_wrap["stop_reason"])
+            self._logger.response(
+                text=text, usage=response.get("usage"), stop_reason=parsed_wrap["stop_reason"],
+                **self._cost_fields(response),
+            )
             self._logger.turn_end(reason=reason, iterations=self._iteration, tokens=self._context.turn_tokens)
             self._context.add_message("assistant", text)
             return self._finish_turn(text, reason=reason)
@@ -262,6 +360,7 @@ class Agent:
             text=f"(tool use — {len(tool_calls)} call{calls_suffix})",
             usage=response.get("usage"),
             stop_reason="tool_use",
+            **self._cost_fields(response),
         )
 
         self._context.add_message("assistant", content)

@@ -169,6 +169,46 @@ other characters.
   (`after_turn_fires_on_wrap_up_path`, `..._on_api_error_path`) exist purely
   because of the three-exits problem above.
 
+- Built the observability layer (phase 2: cost reconnect, cache-aware
+  accounting, truncation visibility, reasoning fix, log-digest, session
+  reporter). The first thing the reporter did when pointed at the 25 committed
+  week 1 sessions was surface a finding none of the planning had predicted:
+  **56 of 68 recorded turns ended on `max_tokens`, not `completed`** — 82% of
+  turns were being cut off by the turn spend-ceiling and forced into a
+  wind-down. The arithmetic explains it exactly: ~11,562 input tokens per
+  response × 4.7 iterations per turn ≈ **59,890 tokens per turn against a
+  60,000 default budget**. The budget was being consumed by re-sending the
+  conversation, not by doing work.
+  That reframes prompt caching from a cost optimization into a **capability
+  fix**. Because the turn budget is charged billable input only, cached tokens
+  stop consuming it — so caching should convert most of those 56 truncated
+  turns into turns that actually finish. The strongest argument yet for Token
+  M2, and it is an autonomy argument rather than a spend one. Nothing in the
+  plan anticipated this; it fell straight out of building the instrument first,
+  which was the entire reason for sequencing observability ahead of the other
+  two pillars.
+- The reporter also confirmed empirically what had only been read off the code:
+  **zero `reasoning` events across 2,395 events in 25 sessions**, and zero
+  cache usage. A pipeline that had never once fired, invisible because nothing
+  ever errored.
+- Four separate bugs this phase shared one shape, which is worth naming as a
+  category rather than four incidents: *code that is present, correct, wired,
+  and silently wrong or silently absent.* Cost estimation fully implemented and
+  uncalled; reasoning logging correct on both sides and never firing;
+  truncation relabelled as a completed turn; cache-aware accounting that would
+  have broken compaction the moment caching was enabled. None raised an error,
+  none failed a test, and none would have been caught by reading a diff — they
+  needed either running the instrument over real data or tracing a value
+  end-to-end. Worth remembering that "it doesn't crash" and "it works" have
+  been different things at every step of this project.
+- Deliberately did **not** build retry machinery for truncation. Measured at 1
+  in 404 responses, so the fix was to stop hiding it (distinct `stop_reason`,
+  its own log phase, `truncated` rather than `completed` as the turn reason)
+  and raise `max_output_tokens` 1024 → 4096, which costs nothing since billing
+  is on tokens produced rather than the cap. Once it is visible we will have
+  real data on whether the rate climbs — and it should, since thinking tokens
+  now count against that same ceiling.
+
 ## Technical Conclusions
 <!-- Written at the end of the week. -->
 

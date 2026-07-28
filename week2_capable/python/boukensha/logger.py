@@ -50,17 +50,44 @@ class Logger:
     def turn_end(self, *, reason, iterations, tokens=None):
         self._write_log({"phase": "turn_end", "reason": reason, "iterations": iterations, "tokens": tokens})
 
+    # week2 M6: log a DIGEST of the message list, not the whole thing.
+    #
+    # This method used to serialize every message on every iteration, so log
+    # size grew quadratically with conversation length. Measured across the 25
+    # committed week1 sessions: `prompt` events were 4.3 MB of a single 4.56 MB
+    # file (94%), and session logs overall were 11 MB of a 17 MB repo. Since
+    # week2 commits logs for evaluation AND runs much longer grind sessions --
+    # with hooks injecting still more messages -- that curve had to be broken
+    # before the long runs start, not after.
+    #
+    # The digest keeps what analysis actually needs (how many messages, of what
+    # roles, how big) and drops the part that was pure repetition: the contents,
+    # which are already recorded once each by the response/tool_result events
+    # that produced them. Full fidelity remains available behind BOUKENSHA_DEBUG,
+    # same escape hatch as raw().
     def prompt(self, *, messages, tools, context_window):
-        self._write_log(
-            {
-                "phase": "prompt",
-                "message_count": len(messages),
-                "messages": [self._serialize_message(m) for m in messages],
-                "tool_count": len(tools),
-                "tools": list(tools.keys()),
-                "context_window": context_window,
-            }
-        )
+        event = {
+            "phase": "prompt",
+            "message_count": len(messages),
+            "digest": self._digest_messages(messages),
+            "tool_count": len(tools),
+            "tools": list(tools.keys()),
+            "context_window": context_window,
+        }
+        if is_debug():
+            event["messages"] = [self._serialize_message(m) for m in messages]
+        self._write_log(event)
+
+    # Roles in order plus a total character count -- enough to reconstruct the
+    # shape of the conversation (and spot an orphaned leading tool_result, the
+    # failure that cost 15 dead turns in week1) without reprinting its text.
+    def _digest_messages(self, messages):
+        roles = []
+        chars = 0
+        for m in messages:
+            roles.append(m.role)
+            chars += len(str(m.content))
+        return {"roles": roles, "content_chars": chars}
 
     def compaction(self, *, before, dropped, context_window):
         self._write_log({"phase": "compaction", "before": before, "dropped": dropped, "context_window": context_window})
@@ -71,8 +98,36 @@ class Logger:
     def tool_result(self, *, name, result, ok=True, error=None):
         self._write_log({"phase": "tool_result", "name": name, "result": str(result), "ok": ok, "error": error})
 
-    def response(self, *, text, usage=None, stop_reason=None):
-        self._write_log({"phase": "response", "text": str(text).strip(), "usage": usage, "stop_reason": stop_reason})
+    # week2: cost/provider/model restored. 12_context dropped these relative to
+    # 06_the_logger..11_tui while leaving Backends::Base.estimate_cost fully
+    # implemented but uncalled; this reconnects that. `cost` is a float in USD
+    # or None when the model's rates are unknown (Ollama et al).
+    def response(
+        self, *, text, usage=None, stop_reason=None,
+        cost=None, provider=None, model=None, usage_unit=None,
+    ):
+        self._write_log({
+            "phase": "response",
+            "text": str(text).strip(),
+            "usage": usage,
+            "stop_reason": stop_reason,
+            "cost": cost,
+            "provider": provider,
+            "model": model,
+            "usage_unit": usage_unit,
+        })
+
+    # week2: the API cut this response off at max_tokens. Emitted as its own
+    # phase rather than folded into `response` so it is greppable and countable
+    # -- the whole problem with the previous behavior was that truncation was
+    # indistinguishable from a normal completion.
+    def truncated(self, *, iteration, output_tokens=None, max_output_tokens=None):
+        self._write_log({
+            "phase": "truncated",
+            "iteration": iteration,
+            "output_tokens": output_tokens,
+            "max_output_tokens": max_output_tokens,
+        })
 
     def reasoning(self, *, text, redacted=False):
         self._write_log({"phase": "reasoning", "text": str(text), "redacted": redacted})
