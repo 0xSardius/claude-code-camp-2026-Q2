@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 from .agent import Agent
+from .hooks import Hooks
 from .errors import ApiError, LoopError
 
 
@@ -46,6 +47,7 @@ class Repl:
         max_turn_tokens=None,
         max_output_tokens=None,
         interrupt_event=None,
+        hooks=None,
     ):
         self.context = context
         self.logger = logger
@@ -62,8 +64,18 @@ class Repl:
         self._api_key = api_key
         self._mud = mud
         self._interrupt_event = interrupt_event
+        # Hooks live HERE, not on the Agent: run_turn builds a fresh Agent
+        # every turn, so any handler state that must persist across turns
+        # (memory handles, cumulative spend, consecutive-stall counters)
+        # cannot be owned by the Agent. Constructed once and handed to each.
+        self._hooks = hooks if hooks is not None else Hooks()
         self._turn = 0
         self._output_cb = None
+
+    @property
+    def hooks(self):
+        """The shared Hooks registry. Register handlers here, before start()."""
+        return self._hooks
 
     def on_output(self, callback):
         """Register a callback that receives every string the REPL would
@@ -148,6 +160,7 @@ class Repl:
             max_turn_tokens=self._max_turn_tokens,
             max_output_tokens=self._max_output_tokens,
             interrupt_event=self._interrupt_event,
+            hooks=self._hooks,
         )
         try:
             result = agent.run()

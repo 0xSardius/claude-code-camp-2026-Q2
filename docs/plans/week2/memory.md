@@ -59,24 +59,110 @@ loop. It attaches at `before_turn` (load the character's facts and current goal
 into context) and gates `before_model`'s first-visit room survey — a room the
 store already knows is not a first visit.
 
-### Open: structure vs freeform
+### Settled 2026-07-27: record edges, present trails
 
-`week2_foundations.md` leaves this open, and it should stay open until the
-bakery run forces an answer. Freeform text-per-fact is cheaper and reads well
-in the prompt; a real room graph is more general and makes "know the way back"
-mechanical instead of inferred. **Recommendation: start freeform with a
-structured *route* record as the one exception**, since "know the way back"
-is an explicit goal requirement and is the one thing freeform text is worst at.
-Revisit when the scale-up loop is attempted.
+Freeform text for everything *except* movement, which gets one narrow piece of
+structure. Two facts drove this:
+
+- **Room identity is the hard problem.** tbaMUD room names are not unique ("A
+  Dark Alley" recurs), so a graph needs a fingerprint (name + sorted exit list
+  + description hash). A wrong fingerprint corrupts the map silently and in the
+  worst way — two rooms merge, or one splits.
+- **Exits aren't reliably symmetric.** CircleMUD supports one-way exits, so
+  "reverse the path by inverting each direction" is wrong in the general case.
+  An edge is only known bidirectional once observed in both directions.
+
+So: **store `(from_room, direction, to_room)` edge triples; a "trail" is a
+query over accumulated edges, not a stored object.** A flat direction list
+would not scale — 50 places is up to 2,450 journeys, shared path prefixes get
+duplicated, nothing composes, and an inefficient first recording gets replayed
+forever. Storing edges fixes all four: composition works as soon as two
+journeys share a room, shortest path is a BFS, and shared prefixes *are* the
+same edges. No migration is needed later, because the graph is already latent
+in the data.
+
+The identity risk is contained by a useful asymmetry: **trail replay is robust
+to bad room keys; composition is not.** Replaying a recorded sequence works
+even if two rooms collide on a fingerprint. So ship edge recording + trail
+replay first, and enable composition/shortest-path only once the fingerprints
+are shown to hold.
+
+Known remaining limits, accepted: edges never expire (a route through a
+now-dangerous room stays "valid"), and real scaling pressure arrives with
+multi-zone exploration, which is week 3 territory.
+
+**Not using `circlemud-world-parser` to preload the map** — it would make this
+pillar untestable, since you can't demonstrate an agent learned a map you
+handed it, and it wouldn't generalize to unseen zones. Keep it as a debugging
+oracle for verifying the learned map is correct.
+
+### Layout
+
+Split by *who writes it*, which keeps the two write paths from tangling:
+
+```
+.boukensha/memory/<character>/
+  state.json     -- level, hp, position belief    (harness-written)
+  trails.json    -- recorded edges                 (harness-written)
+  facts.md       -- world/character observations   (agent-written)
+  learnings.md   -- efficiency observations        (agent-written)
+  journal.md     -- human-readable narrative       (agent + generated)
+```
+
+JSON for harness-owned files (nothing reads them in a prompt); Markdown for
+agent-owned ones (they get injected into context, and Markdown is what the
+model writes well).
+
+**Committed to git**, per the 2026-07-27 decision, via the same `.gitignore`
+carve-out pattern `.boukensha/sessions/*.jsonl` already uses. These are small
+by nature and are arguably the most interesting evaluation artifact in the
+repo — they show what the agent taught itself.
+
+### The player file is a CLAUDE.md for the character, and caching splits it
+
+Today's hand-maintained `player.md` does four jobs at once: current character
+state, accumulated world knowledge, a progress narrative, and standing
+playstyle instructions. That *is* a CLAUDE.md for the character.
+
+Week 2 splits it, and the reason is **prompt caching, not tidiness**. A
+CLAUDE.md that rewrites itself every turn cannot live in the system prompt: any
+byte change to the cached prefix invalidates the whole cache, and caching is
+~94% of the token spend. So the split follows write cadence:
+
+| Job | Written by | Changes | Where it lives |
+|---|---|---|---|
+| Playstyle, personality, standing rules | human | rarely | **system prompt** — cached |
+| Character state (level, HP, position) | harness, from `score` | every turn | injected as a message, after the breakpoint |
+| World knowledge, learnings | agent | on discovery | injected as a message, after the breakpoint |
+| Progress narrative | agent | end of session | **never sent to the model** |
+
+Row one already exists: `.boukensha/prompts/player/system.md`, written
+2026-07-26. The stable half of the character's CLAUDE.md is already built and
+already in the right place; week 2 adds the volatile half and keeps it *out* of
+the system prompt.
+
+**`journal.md` is hybrid**: the stats section is *rendered from recorded state*
+so it structurally cannot fabricate progress, and the narrative section is
+agent-authored prose clearly marked as its own account. Generation can't
+produce "I nearly died to the guard, so I avoid that room," and that's the part
+that makes today's `player.md` valuable. The generated half shares
+implementation with observability M5's session reporter — same inputs,
+different rendering. The narrative half costs output tokens, which the
+measurement showed are 6% of spend, so it is effectively free.
+
+**Deferred deliberately**: the agent does *not* get to rewrite its own
+`system.md` playstyle in week 2. It invalidates the cache, it's a large
+behavioral lever with no rollback, and a bad self-edit would quietly degrade
+every later session. Learnings accumulate in `learnings.md`; promoting one into
+standing playstyle stays a human decision. Revisit once the learnings loop has
+a track record — it is the natural next autonomy step.
 
 ## Milestones
 
 **M1 — Store.**
-A per-character store on disk under `.boukensha/` (matching the existing
-`sessions/` and `prompts/` layout), with facts and learnings separated.
-Gitignore policy needs a decision, same as the `sessions/*.jsonl` carve-out
-made in `06_the_logger`: memory files are generated artifacts, but they may be
-worth committing for instructor evaluation. **Ask before defaulting.**
+The per-character layout above, under `.boukensha/memory/<character>/`.
+Gitignore: **committed**, via a carve-out mirroring `sessions/*.jsonl`
+(settled 2026-07-27).
 
 **M2 — Memory tools.**
 Register read/write tools on the registry so the model can consult and record

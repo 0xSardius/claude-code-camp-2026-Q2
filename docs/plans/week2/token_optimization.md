@@ -4,9 +4,35 @@ Goal: cut the cost of an autonomous run without cutting its capability.
 Builds on `00_lifecycle_hooks.md`, and depends on the observability pillar for
 its before/after numbers.
 
-**Measure before optimizing.** Every lever below is a hypothesis about where
-the spend goes. The observability pillar's summary reporter (its M5) exists so
-this pillar can be evidence-driven instead of folklore-driven.
+## Measured baseline (2026-07-27)
+
+Extracted from the 25 committed session logs — 404 responses carrying `usage`:
+
+| | |
+|---|---|
+| Input tokens | 4,671,441 |
+| Output tokens | 62,923 |
+| Cache reads / writes | **0** |
+| Median output per response | 90 tokens |
+| Cost @ intro $2/$10 | ~$9.97 (of which **$9.34 is input**) |
+
+**Input outweighs output 74:1**, and this reorders the whole pillar:
+
+- **Caching is very nearly the only lever.** It acts on the 94% of spend that
+  is input tokens. A rough projection at 75% cache-hit puts input near $3 —
+  call it 60–65% off total, less in practice because writes cost 1.25× and
+  every compaction invalidates the conversation prefix.
+- **`effort` / thinking tuning is *not* a lever here**, contrary to first
+  instinct. The payload sends no `thinking` or `output_config`, so on
+  `claude-sonnet-5` adaptive thinking runs by default at `effort: high` — but
+  thinking bills as output tokens, and output is 6% of spend. Tuning it would
+  save cents. Deliberately dropped from this pillar. (It resurfaces in
+  observability as a *logging* gap, not a cost one — see that plan.)
+- `max_output_tokens` defaults to 1024 and the max observed response is exactly
+  1024, so some responses are being truncated at the cap. Worth raising
+  independent of cost.
+
+Consequence: **M2 is the only load-bearing milestone here.** M3–M5 are cleanup.
 
 ## The levers, largest first
 

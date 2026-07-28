@@ -103,6 +103,25 @@ long, whether it resolved, and what the harness did next.
 Attaches at `after_tool` (a tool result indicating "too exhausted to move" is
 the trigger) and `before_tools`.
 
+### M3a — Reasoning logging is silently dead (found 2026-07-27)
+
+`Agent._log_reasoning` emits a `reasoning` event per reasoning block, and
+`backends/anthropic.py` normalizes `thinking`/`redacted_thinking` into them.
+But the payload never sends a `thinking` parameter, and on `claude-sonnet-5`
+`thinking.display` defaults to `"omitted"` — so blocks arrive with empty text,
+`_log_reasoning` skips every empty non-redacted block, and **no `reasoning`
+event has ever been written.**
+
+This is an observability gap, not a cost one (thinking bills as output tokens,
+which are 6% of spend — see the token plan's baseline). Setting
+`thinking: {"type": "adaptive", "display": "summarized"}` makes the agent's
+reasoning visible in the very logs being committed for evaluation, which is
+worth having for roughly nothing.
+
+*Note the caching interaction*: toggling `thinking` on or off invalidates the
+messages cache but **not** the tools+system cache, so this is safe to set once
+at startup and leave alone. Don't toggle it per-request.
+
 ### M5 — Session summary reporter
 
 A reader over the JSONL that answers, for a finished or in-flight run: total
@@ -113,6 +132,13 @@ This is what makes the other pillars measurable: the before/after number for
 "did caching help?" comes from here.
 
 ### M6 — Fix the prompt-log bloat
+
+> **Reordered 2026-07-27: this now runs BEFORE M5.** The decision to commit
+> session logs for instructor evaluation makes it a prerequisite rather than a
+> cleanup task — logs are already **11 MB of a 17 MB repo** (~65%), and week 2's
+> grind sessions are far longer than week 1's. Fixing this first means the long
+> runs are never recorded in the expensive format. M5 also reads the format M6
+> changes, so doing M5 first would mean writing it twice.
 
 Measured from the longest week 1 session
 (`.boukensha/sessions/20260725T144647Z-bff5b1e0.jsonl`, 4.56 MB):

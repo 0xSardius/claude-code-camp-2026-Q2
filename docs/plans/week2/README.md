@@ -31,6 +31,46 @@ pillar, plus the lifecycle-hook foundation they all attach to.
   breaks the five-backend symmetry. It is implemented as an opt-in the
   Anthropic backend honors and the other four ignore.
 
+## Decisions settled 2026-07-27 (after Phase 0)
+
+Four open questions, closed — plus the measurement that reordered the token
+pillar. Details live in the per-pillar plans; this is the index.
+
+- **Commit logs and memory files** for instructor evaluation, via the same
+  `.gitignore` carve-out pattern `.boukensha/sessions/*.jsonl` already uses.
+  **Consequence**: observability M6 (the quadratic prompt logging) moves *ahead*
+  of M5, because it's what makes this policy sustainable — logs are currently
+  11 MB of a 17 MB repo and grow quadratically with conversation length.
+- **`before_model` tracks rather than polls.** Position is a harness-maintained
+  belief updated at `after_tool`; a real `look` is issued only when that belief
+  is stale. See `00_lifecycle_hooks.md` M3.
+- **Store format: record edges, present trails.** Not a flat direction list and
+  not an up-front room graph. See `memory.md`.
+- **Player file: hybrid** — generated numbers, agent-authored narrative. See
+  `memory.md`.
+- **Not using `circlemud-world-parser` to preload the map.** It would make the
+  memory pillar untestable (you can't show an agent learned a map you handed
+  it) and wouldn't generalize to unseen zones. Keep it as a debugging oracle
+  for checking whether the learned map is *correct*.
+
+### The measurement that reordered the token pillar
+
+Extracted from the 25 committed session logs (404 responses carrying `usage`):
+
+| | |
+|---|---|
+| Input tokens | 4,671,441 |
+| Output tokens | 62,923 |
+| Cache reads / writes | **0** |
+| Cost @ intro $2/$10 | ~$9.97 |
+
+**Input outweighs output 74:1.** So prompt caching isn't merely the biggest
+lever, it's very nearly the only one — $9.34 of that $9.97 is input tokens.
+Conversely, `effort` and thinking tuning act on output, which is 6% of spend;
+tuning it would save cents. Token M2 is promoted to the pillar's only
+load-bearing milestone; M3–M5 are demoted to cleanup. See
+`token_optimization.md`.
+
 ## The lifecycle-hook spine
 
 Course material for week 2 defines a hook surface on the agent loop, with these

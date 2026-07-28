@@ -94,16 +94,30 @@ and confirm the rewritten text — not the original — is what lands in
 *Verify*: assert on `context.messages` directly, not on the model's behavior.
 
 **M3 — MUD state handlers (`before_turn`, `before_model`).**
-`before_turn` runs `check("score")` to initialize player state. `before_model`
-runs `look` to establish position, plus a first-visit room survey.
-**Open question to settle before building**: `before_model` fires on *every*
-iteration, and the longest week 1 session had 119 iterations across 26 turns.
-An unconditional `look` per iteration is 119 extra round trips to a MUD that
-drops its connection every 10s–few min, plus 119 extra tool results in context.
-Make the survey genuinely first-visit-only (keyed on room identity, which needs
-the memory pillar's fact store) and make the positional `look` conditional on
-something — a movement having occurred since the last one is the obvious
-trigger. Do not ship an unconditional per-iteration `look`.
+`before_turn` runs `check("score")` to initialize player state.
+
+`before_model` **tracks rather than polls** (settled 2026-07-27). Its job is to
+ensure the model knows where it is — which is usually free. Maintain a
+current-room belief in the harness, updated at `after_tool` from `move` and
+`look` results, and have `before_model` inject that belief as context with no
+MUD round trip. Issue a real `look` only when the belief is stale or absent:
+
+- **First iteration of a turn** — anything could have happened between turns.
+- **After a `flee`** — flees go in a *random* direction, so position is
+  genuinely unknown. This is the case that most needs it.
+- **After a reconnect** — the session drops constantly.
+- **After death or respawn.**
+- **When parsing failed** — output that didn't resolve to a known room.
+
+Rejected: "look when a movement occurred." A `move` already returns the new
+room description in its own output, so a following `look` is redundant.
+Also rejected: unconditional per-iteration `look` — 119 extra round trips in
+the longest week 1 session, to a connection that drops every 10s–few min.
+
+The triggers above give ~30 looks per session instead of 119, each justified.
+The first-visit survey keys off the memory store, so survey frequency **decays
+toward zero as the map fills in** — `before_model` gets cheaper the longer the
+agent plays, which is the right direction for a multi-hour grind.
 
 **M4 — `before_tools` poll.**
 Poll before a model-selected tool batch runs. Scope what "poll" means here

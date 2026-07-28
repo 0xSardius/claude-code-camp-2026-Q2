@@ -80,6 +80,12 @@ class Logger:
     def plan(self, *, text):
         self._write_log({"phase": "plan", "text": str(text).strip()})
 
+    # week2: a lifecycle handler raised. Logged rather than propagated -- a
+    # crashing observer must never cost a turn (or, at after_tool, a real tool
+    # result). See hooks.py's Hooks.fire.
+    def hook_error(self, *, hook, handler, error):
+        self._write_log({"phase": "hook_error", "hook": hook, "handler": handler, "error": error})
+
     def raw(self, *, data):
         if not is_debug():
             return

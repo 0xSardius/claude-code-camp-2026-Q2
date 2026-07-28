@@ -123,6 +123,52 @@ other characters.
   declaring the mirror retired, instead of a 26-file rewrite that would have
   destroyed more knowledge than it cleaned up.
 
+- Mined the 25 committed session logs for real `usage` data before building
+  anything in the token pillar, and it **overturned the plan I had just
+  written**. I'd found that the payload never sends `thinking` or
+  `output_config`, which on `claude-sonnet-5` means adaptive thinking runs by
+  default at `effort: high` — which sounded expensive and like a major lever.
+  The measurement says otherwise: 4.67M input tokens against 62.9K output, a
+  **74:1 ratio**, so thinking (which bills as output) is 6% of spend and
+  tuning it would save cents. Prompt caching acts on the other 94%. Token M2
+  got promoted to the pillar's only load-bearing milestone and M3–M5 demoted to
+  cleanup. The general lesson is the one the plan already asserted and then
+  nearly failed to follow: a lever that is obviously real is not automatically
+  a lever that matters, and the only way to tell is to measure first. Also
+  confirmed zero cache usage today, and that `max_output_tokens` defaults to
+  1024 with the max observed response landing exactly on 1024 — so some
+  responses have been truncating at the cap.
+- The same investigation found that `reasoning` logging has never once fired.
+  `Agent._log_reasoning` and the Anthropic backend's `thinking` normalization
+  are both correct, but with `display` defaulting to `"omitted"` on Sonnet 5
+  the blocks arrive empty, and `_log_reasoning` skips empty non-redacted
+  blocks. Working code, wired correctly, that has never produced an event —
+  and it was invisible precisely because nothing errored. Filed under
+  observability rather than cost.
+- Built the lifecycle-hook foundation (M1 + M2). Chose payload **mutation**
+  over a return-value convention deliberately: with multiple handlers on one
+  seam, a returned `None` is ambiguous between "replace this with nothing" and
+  "I had nothing to say," which is the falsy-vs-`None` trap this project has
+  hit at nearly every step. `after_tool` fires outside the `try/except` around
+  `registry.dispatch` for the same reason that block's own comment gives — a
+  failure in *observation* must never be misreported to the model as the tool
+  having failed. Verified: a handler that raises leaves the turn alive, the
+  real tool result intact, and an error logged.
+- Funnelled all three turn exits through one `_finish_turn` helper rather than
+  firing `after_turn` at each `return`. Three call sites would have been three
+  chances to miss one, and the miss would have been near-invisible: from the
+  week 1 logs, *every* turn in the longest grind session left through a
+  `_wrap_up` path, so a happy-path-only hook would have reported nothing at all
+  while looking correct in every short test.
+- Wrote a 10-test offline regression suite (`tests/test_hooks.py`, no runner
+  dependency, `FakeClient` instead of network) as the deliberate replacement
+  for the byte-for-byte parity check the retired Ruby mirror took with it. It
+  is a narrower check than parity was — it only covers the hook seams — but it
+  covers the specific thing parity was protecting here: that adding seams to
+  `Agent.run()` didn't change what the loop does. Two of the ten tests
+  (`after_turn_fires_on_wrap_up_path`, `..._on_api_error_path`) exist purely
+  because of the three-exits problem above.
+
 ## Technical Conclusions
 <!-- Written at the end of the week. -->
 

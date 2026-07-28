@@ -52,6 +52,7 @@ from .backends.openai import OpenAI
 from .client import Client
 from .config import Config
 from .context import Context
+from .hooks import Hook, HookPayload, Hooks
 from .errors import ApiError, LoopError, TurnInterrupted, UnknownToolError, UnsupportedModelError
 from .logger import Logger
 from .message import Message
@@ -79,6 +80,9 @@ __all__ = [
     "PromptBuilder",
     "Client",
     "Agent",
+    "Hook",
+    "Hooks",
+    "HookPayload",
     "Logger",
     "RunDSL",
     "Repl",
@@ -133,6 +137,7 @@ def run(
     shell_timeout=30,
     mud=None,
     setup=None,
+    hooks=None,
 ):
     # working_dir defaults to the current directory (Ruby: working_dir:
     # Dir.pwd), not None -- os.getcwd() evaluated at CALL time via the
@@ -238,6 +243,7 @@ def run(
             max_iterations=effective_max_iterations,
             max_turn_tokens=effective_max_turn_tokens,
             max_output_tokens=effective_max_output_tokens,
+            hooks=hooks,
         )
 
         ctx.add_message("user", task)
@@ -263,6 +269,7 @@ def repl(
     mud=None,
     tui=True,
     setup=None,
+    hooks=None,
 ):
     # See run()'s matching comment: working_dir defaults to cwd
     # (call-time, not def-time -- the same Ruby-fresh-default-per-call
@@ -379,6 +386,7 @@ def repl(
             api_key=api_key,
             mud=resolved_mud,
             interrupt_event=interrupt_event,
+            hooks=hooks,
         )
 
         if tui:
