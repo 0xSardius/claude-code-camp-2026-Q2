@@ -52,9 +52,11 @@ from .backends.openai import OpenAI
 from .client import Client
 from .config import Config
 from .context import Context
-from .hooks import Hook, HookPayload, Hooks
 from .errors import ApiError, LoopError, TurnInterrupted, UnknownToolError, UnsupportedModelError
 from .logger import Logger
+from .memory import Memory
+from . import memory_hooks as _memory_hooks
+from .hooks import Hook, HookPayload, Hooks
 from .message import Message
 from .prompt_builder import PromptBuilder
 from .registry import Registry
@@ -62,6 +64,7 @@ from .repl import Repl
 from .run_dsl import RunDSL
 from .tool import Tool
 from .tools import file_system as _file_system_tools
+from .tools import memory as _memory_tools
 from .tools import mud as _mud_tools
 from .tools import shell as _shell_tools
 from .version import VERSION
@@ -84,6 +87,7 @@ __all__ = [
     "Hooks",
     "HookPayload",
     "Logger",
+    "Memory",
     "RunDSL",
     "Repl",
     "VERSION",
@@ -138,6 +142,7 @@ def run(
     mud=None,
     setup=None,
     hooks=None,
+    memory=None,
 ):
     # working_dir defaults to the current directory (Ruby: working_dir:
     # Dir.pwd), not None -- os.getcwd() evaluated at CALL time via the
@@ -190,6 +195,24 @@ def run(
     resolved_mud = None if mud is False else (mud if mud is not None else _mud_opts_from_config(cfg))
     if resolved_mud:
         _mud_tools.register(registry, **resolved_mud)
+
+    # Per-character memory (week2). Enabled automatically whenever a MUD
+    # character is configured -- an agent that plays but forgets is the gap
+    # week1's live playtest ran into. memory=False opts out; a string names a
+    # different character; a Memory instance is used as-is.
+    mem = None
+    if memory is not False:
+        if isinstance(memory, Memory):
+            mem = memory
+        else:
+            char = memory if isinstance(memory, str) else (resolved_mud or {}).get("name")
+            if char:
+                mem = Memory(char)
+    if mem is not None:
+        _memory_tools.register(registry, memory=mem)
+        if hooks is None:
+            hooks = Hooks()
+        _memory_hooks.install(hooks, mem, registry=registry)
 
     if setup is not None:
         setup(RunDSL(registry))
@@ -270,6 +293,7 @@ def repl(
     tui=True,
     setup=None,
     hooks=None,
+    memory=None,
 ):
     # See run()'s matching comment: working_dir defaults to cwd
     # (call-time, not def-time -- the same Ruby-fresh-default-per-call
@@ -323,6 +347,24 @@ def repl(
         resolved_mud = None if mud is False else (mud if mud is not None else _mud_opts_from_config(cfg))
         if resolved_mud:
             _mud_tools.register(registry, **resolved_mud)
+
+        # Per-character memory (week2). Enabled automatically whenever a MUD
+        # character is configured -- an agent that plays but forgets is the gap
+        # week1's live playtest ran into. memory=False opts out; a string names a
+        # different character; a Memory instance is used as-is.
+        mem = None
+        if memory is not False:
+            if isinstance(memory, Memory):
+                mem = memory
+            else:
+                char = memory if isinstance(memory, str) else (resolved_mud or {}).get("name")
+                if char:
+                    mem = Memory(char)
+        if mem is not None:
+            _memory_tools.register(registry, memory=mem)
+            if hooks is None:
+                hooks = Hooks()
+            _memory_hooks.install(hooks, mem, registry=registry)
 
         if setup is not None:
             setup(RunDSL(registry))
