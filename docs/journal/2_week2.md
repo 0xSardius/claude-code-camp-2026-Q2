@@ -60,184 +60,268 @@ other characters.
   sustained real load, which is precisely what an observability layer is for.
 
 ## Technical Observations
-<!-- Fill in as work lands. Each entry: what was built/found, what it cost,
-     what it changed. Same style as week1 — specific, with the surprising part
-     called out rather than smoothed over. -->
 
-- Set week2's structural ground rules before writing any code (2026-07-27),
-  rather than defaulting silently: week2 lives in `week2_capable/` as one
-  evolving Python project seeded from `week1_baseline/python/12_context`
-  (week1 stays frozen as a submitted artifact); the Ruby↔Python parity mirror
-  is **retired** for week2 (the port methodology proved out over 13 steps and
-  every live playtest ran Python, so the mirror's remaining value didn't
-  justify writing every greenfield feature twice); and Anthropic-specific
-  prompt caching is explicitly in scope for the token-optimization pillar even
-  though it breaks the five-backend symmetry, because it's where the
-  order-of-magnitude win is.
-- The week 2 course material's **lifecycle hooks** (`before_turn`,
-  `before_model`, `before_tools`, `after_tool`, `after_turn`) reframed the
-  whole build: rather than editing three separate features into `Agent.run()`,
-  all three pillars become hook handlers attached to one seam. The course's own
-  description of `after_tool` — "replace raw movement output with a compact
-  result" — turns out to *be* the token-optimization pillar's output-trimming
-  lever, which is a strong signal the seam is in the right place. Its
-  turn/iteration vocabulary also already matches this codebase exactly (a turn
-  is one `Agent.run()`, an iteration is one pass of the inner loop and its
-  model request), so `Logger`'s existing `turn`/`iteration` events needed no
-  renaming.
-- Reading the week 1 session logs to size the observability work surfaced two
-  concrete problems before any code was written. First, `Logger.prompt()`
-  re-serializes the entire message list every iteration, so log size grows
-  quadratically with conversation length — in the longest grind session that's
-  4.3 MB of a 4.56 MB file (94%) spent re-writing conversation history. Second,
-  and more load-bearing: `usage.input_tokens` is the *uncached remainder only*,
-  so the moment prompt caching is enabled, `Context.current_tokens` collapses
-  and `needs_compaction()` stops firing no matter how full the real context
-  window gets. That's the same failure shape as the already-documented
-  multi-provider usage-fallback bug, arriving by a new route — and it means the
-  observability fix has to land *before* the token-optimization pillar turns
-  caching on, not after. Also found the price table stale for the model
-  actually in use (`claude-sonnet-5` is on introductory pricing through
-  2026-08-31, so a naive cost re-connect would report ~50% high).
-- Scaffolded `week2_capable/` from `week1_baseline/python/12_context`
-  (2026-07-27). The `BOUKENSHA_DIR` path-math gotcha showed up immediately and
-  in the *opposite* direction from every previous occurrence: week 1's steps
-  all needed 4 `.parent` hops and repeatedly shipped with 3, but
-  `week2_capable/python/examples/` sits one level shallower, so 3 is now
-  correct and copying the known-good week 1 line forward would have overshot
-  past the repo root. A gotcha memorized as a *value* ("it should be 4") rather
-  than as a *procedure* ("recount the hops") would have caused the bug it was
-  written to prevent — worth noting given how much of this project's checklist
-  is phrased as values.
-- Confirmed the stale-pricing concern empirically rather than leaving it as an
-  assertion: `estimate_cost(1M in, 1M out)` on the forked build returns
-  **$18.00**, which is the table's `3.0/15.0`, where Sonnet 5's introductory
-  rate would give $12.00. So the cost-reconnect milestone starts from a number
-  that is ~50% high, and would have quietly reported inflated spend for the
-  whole week if it had shipped as a pure re-wire.
-- Kept all 26 modules' `Port of week1_baseline/ruby/...` docstrings rather than
-  rewriting them for the fork. They're stale as *instructions* but accurate as
-  *provenance*, and they carry the load-bearing reasoning (the Ruby/Python
-  semantic gaps, why a given method is shaped the way it is) that the gotchas
-  list depends on. Resolved with one package-level note in `__init__.py`
-  declaring the mirror retired, instead of a 26-file rewrite that would have
-  destroyed more knowledge than it cleaned up.
+**Status at time of writing (2026-07-28):** observability and token
+optimization are built and verified. Memory is next. The bakery run has not
+been attempted yet.
 
-- Mined the 25 committed session logs for real `usage` data before building
-  anything in the token pillar, and it **overturned the plan I had just
-  written**. I'd found that the payload never sends `thinking` or
-  `output_config`, which on `claude-sonnet-5` means adaptive thinking runs by
-  default at `effort: high` — which sounded expensive and like a major lever.
-  The measurement says otherwise: 4.67M input tokens against 62.9K output, a
-  **74:1 ratio**, so thinking (which bills as output) is 6% of spend and
-  tuning it would save cents. Prompt caching acts on the other 94%. Token M2
-  got promoted to the pillar's only load-bearing milestone and M3–M5 demoted to
-  cleanup. The general lesson is the one the plan already asserted and then
-  nearly failed to follow: a lever that is obviously real is not automatically
-  a lever that matters, and the only way to tell is to measure first. Also
-  confirmed zero cache usage today, and that `max_output_tokens` defaults to
-  1024 with the max observed response landing exactly on 1024 — so some
-  responses have been truncating at the cap.
-- The same investigation found that `reasoning` logging has never once fired.
-  `Agent._log_reasoning` and the Anthropic backend's `thinking` normalization
-  are both correct, but with `display` defaulting to `"omitted"` on Sonnet 5
-  the blocks arrive empty, and `_log_reasoning` skips empty non-redacted
-  blocks. Working code, wired correctly, that has never produced an event —
-  and it was invisible precisely because nothing errored. Filed under
-  observability rather than cost.
-- Built the lifecycle-hook foundation (M1 + M2). Chose payload **mutation**
-  over a return-value convention deliberately: with multiple handlers on one
-  seam, a returned `None` is ambiguous between "replace this with nothing" and
-  "I had nothing to say," which is the falsy-vs-`None` trap this project has
-  hit at nearly every step. `after_tool` fires outside the `try/except` around
-  `registry.dispatch` for the same reason that block's own comment gives — a
-  failure in *observation* must never be misreported to the model as the tool
-  having failed. Verified: a handler that raises leaves the turn alive, the
-  real tool result intact, and an error logged.
-- Funnelled all three turn exits through one `_finish_turn` helper rather than
-  firing `after_turn` at each `return`. Three call sites would have been three
-  chances to miss one, and the miss would have been near-invisible: from the
-  week 1 logs, *every* turn in the longest grind session left through a
-  `_wrap_up` path, so a happy-path-only hook would have reported nothing at all
-  while looking correct in every short test.
-- Wrote a 10-test offline regression suite (`tests/test_hooks.py`, no runner
-  dependency, `FakeClient` instead of network) as the deliberate replacement
-  for the byte-for-byte parity check the retired Ruby mirror took with it. It
-  is a narrower check than parity was — it only covers the hook seams — but it
-  covers the specific thing parity was protecting here: that adding seams to
-  `Agent.run()` didn't change what the loop does. Two of the ten tests
-  (`after_turn_fires_on_wrap_up_path`, `..._on_api_error_path`) exist purely
-  because of the three-exits problem above.
+**Vocabulary, since everything below leans on it.** A *turn* is one instruction
+from a human plus all the work the agent does to answer it. An *iteration* is
+one round inside that turn — one request to the model and its reply. A single
+turn usually takes several iterations, because the agent looks, decides, acts,
+sees the result, and decides again. *Tokens* are how the model bills: roughly,
+chunks of text going in (input) and coming out (output).
 
-- Built the observability layer (phase 2: cost reconnect, cache-aware
-  accounting, truncation visibility, reasoning fix, log-digest, session
-  reporter). The first thing the reporter did when pointed at the 25 committed
-  week 1 sessions was surface a finding none of the planning had predicted:
-  **56 of 68 recorded turns ended on `max_tokens`, not `completed`** — 82% of
-  turns were being cut off by the turn spend-ceiling and forced into a
-  wind-down. The arithmetic explains it exactly: ~11,562 input tokens per
-  response × 4.7 iterations per turn ≈ **59,890 tokens per turn against a
-  60,000 default budget**. The budget was being consumed by re-sending the
-  conversation, not by doing work.
-  That reframes prompt caching from a cost optimization into a **capability
-  fix**. Because the turn budget is charged billable input only, cached tokens
-  stop consuming it — so caching should convert most of those 56 truncated
-  turns into turns that actually finish. The strongest argument yet for Token
-  M2, and it is an autonomy argument rather than a spend one. Nothing in the
-  plan anticipated this; it fell straight out of building the instrument first,
-  which was the entire reason for sequencing observability ahead of the other
-  two pillars.
-- The reporter also confirmed empirically what had only been read off the code:
-  **zero `reasoning` events across 2,395 events in 25 sessions**, and zero
-  cache usage. A pipeline that had never once fired, invisible because nothing
-  ever errored.
-- Four separate bugs this phase shared one shape, which is worth naming as a
-  category rather than four incidents: *code that is present, correct, wired,
-  and silently wrong or silently absent.* Cost estimation fully implemented and
-  uncalled; reasoning logging correct on both sides and never firing;
-  truncation relabelled as a completed turn; cache-aware accounting that would
-  have broken compaction the moment caching was enabled. None raised an error,
-  none failed a test, and none would have been caught by reading a diff — they
-  needed either running the instrument over real data or tracing a value
-  end-to-end. Worth remembering that "it doesn't crash" and "it works" have
-  been different things at every step of this project.
-- Deliberately did **not** build retry machinery for truncation. Measured at 1
-  in 404 responses, so the fix was to stop hiding it (distinct `stop_reason`,
-  its own log phase, `truncated` rather than `completed` as the turn reason)
-  and raise `max_output_tokens` 1024 → 4096, which costs nothing since billing
-  is on tokens produced rather than the cap. Once it is visible we will have
-  real data on whether the rate climbs — and it should, since thinking tokens
-  now count against that same ceiling.
+### Setting the ground rules
 
-- Shipped prompt caching (token M2) and verified it against the live API rather
-  than trusting the payload shape: two real calls sharing a prefix, the second
-  reading **1,727 of 1,745 input tokens from cache (99%), 89% cheaper on that
-  call**. Worth doing the live check — every way of getting caching wrong (a
-  misplaced breakpoint, a prefix that drifts by a byte, a prefix under the
-  1024-token minimum) produces the *same* symptom as success-minus-savings: no
-  error, just `cache_creation_input_tokens: 0` forever. The offline tests can
-  only assert the shape; they cannot tell you it hit.
-- Changed the plan's own decision while implementing: caching was scoped as an
-  opt-in setting and shipped **defaulting ON** with a config kill-switch
-  instead. The measured 74:1 input ratio plus the 82%-of-turns-cut-off finding
-  made "build it and leave it off" the riskier option — the failure mode of
-  default-on is a bad run we can see in the reporter, while the failure mode of
-  default-off is that the measurement never happens.
-- Two breakpoints rather than one, and the reasoning is worth keeping: the
-  message-side breakpoint is the one that grows with the conversation, but it
-  is worthless exactly when the conversation is compacted or cleared. The
-  system-side breakpoint is the stable anchor that still hits at that moment —
-  and the ~30 tool schemas, not the ~600-token system prompt, are what carry
-  that prefix over the 1024-token minimum. A breakpoint on the system prompt
-  alone would have silently never cached.
-- Operational gotcha found while verifying: `.boukensha/.env` contains a
-  34-character placeholder `ANTHROPIC_API_KEY` that produced a 401, while the
-  real 108-character key lives in the repo-root `.env`. `Config._load_env`
-  loads the former, so anything relying on config's own env loading gets the
-  dummy. Worked around by sourcing the root `.env` before the process starts
-  (python-dotenv does not override an already-set variable) — but the stale
-  placeholder is worth deleting so the next person doesn't lose time to a 401
-  that looks like a billing or permissions problem.
+Three decisions were made up front rather than drifted into.
+
+**Week 2 gets its own codebase.** `week2_capable/` is a copy of week 1's final
+step, evolved from there. Week 1 stays frozen as a submitted artifact.
+
+**The Ruby/Python mirror is retired.** All through week 1, every feature was
+written twice and the two versions were diffed byte-for-byte. That caught a
+real bug on nearly every step. But its value came from porting *from* a Ruby
+original, and week 2's features have no original to port from — writing them
+twice would be parallel design, not porting. The cost of retiring it is real
+and worth stating plainly: we gave up the check that had been finding most of
+our bugs.
+
+**Caching is in scope even though it is Anthropic-specific.** The harness
+supports five model providers and treats them symmetrically. Prompt caching
+breaks that symmetry. We took it anyway, because it was the only lever likely
+to be worth an order of magnitude.
+
+### The lifecycle hooks reframed the whole build
+
+The week 2 course material describes five points in the agent's cycle where
+custom behavior can attach: before a turn, before each model request, before a
+batch of tool calls, after each tool returns, and after a turn. Instead of
+editing three features separately into the main loop, all three attach here.
+
+Two things made this feel like the right shape rather than an imposed one. The
+course's own description of the after-a-tool hook — "replace raw movement
+output with a compact result" — turns out to *be* the token-optimization
+trimming lever, arrived at independently. And the course's turn/iteration
+vocabulary already matched the codebase exactly, so the existing log events
+needed no renaming.
+
+### Scaffolding, and a gotcha that inverted
+
+Copying week 1's final step into `week2_capable/` surfaced this project's
+single most-repeated bug immediately — and pointing the *opposite* way.
+
+The example script computes the repo root by walking up a fixed number of
+parent directories. Every week 1 step needed 4 hops and repeatedly shipped with
+3. The new tree sits one level shallower, so **3 is now correct**, and copying
+the known-good week 1 line forward would have overshot past the repo root.
+
+Worth dwelling on: the project's checklist records this gotcha as a *value*
+("it should be 4"). Held that way, it would have caused the very bug it was
+written to prevent. Held as a *procedure* ("recount the hops"), it works. A
+fair amount of our checklist is phrased as values.
+
+### Deciding what to do with 26 stale docstrings
+
+Every module still opens with "Port of week1_baseline/ruby/...". Those are
+stale as instructions once the mirror is retired, but accurate as history — and
+they carry the reasoning for why each piece is shaped the way it is. Rewriting
+all 26 would have destroyed more knowledge than it cleaned up. Kept them, and
+added one note at the package level declaring the mirror retired.
+
+### What the old logs said, before we built anything
+
+Week 1 left 25 session logs in the repository. Reading them before writing any
+code turned up five problems — one of which changed the plan.
+
+#### The measurement that overturned the plan
+
+We had just written a plan identifying model "thinking" settings as a major
+cost lever. The reasoning was sound: the harness never specifies those
+settings, so the model runs at its most thorough default.
+
+The data disagreed. Across 404 recorded responses: **4.67 million input tokens
+against 62,900 output tokens — a 74:1 ratio.** Thinking is billed as output,
+so it accounts for about 6% of spend. Tuning it would have saved cents.
+Caching acts on the other 94%.
+
+The lesson is one the plan itself asserted and then nearly failed to follow: *a
+lever that is obviously real is not automatically a lever that matters.* The
+only way to tell them apart is to measure first.
+
+#### The logging was growing quadratically
+
+Every iteration, the logger wrote out the *entire* conversation so far. Since
+conversations grow as a turn proceeds, log size grows as the square of the
+conversation length. In the longest session that meant **4.3 MB of a 4.56 MB
+file — 94% of it re-writing history already recorded elsewhere.** Across the
+repository, session logs were 11 MB of 17 MB total.
+
+This mattered more than housekeeping usually does, because we had just decided
+to commit logs for instructor evaluation, and week 2's sessions are far longer
+than week 1's.
+
+#### A bug that would only appear the day caching was switched on
+
+The harness tracks how full the model's context window is, and compacts the
+conversation when it approaches the limit. It reads that figure from the
+response's input-token count.
+
+But once caching is enabled, that field reports only the *uncached remainder* —
+the true size is that plus the cached portions. So the tracked number would
+collapse to something small, the compaction trigger would stop firing, and a
+long run would eventually die of a full context window with no error pointing
+at the cause.
+
+This is the same shape as a bug already documented in that same function, just
+arriving by a different route. It forced the sequencing: fix the accounting
+*before* turning caching on, not after.
+
+#### The price table was wrong for the model we actually use
+
+Confirmed by running it rather than reading it. A million tokens in and out
+priced at **$18.00**, using the standard rate. The model we run has been on
+introductory pricing through 2026-08-31, which gives **$12.00**. Reconnecting
+cost reporting without noticing would have over-reported spend by ~50% all
+week.
+
+#### Reasoning logs had never once fired
+
+The harness logs the model's reasoning. The code that captures it and the code
+that writes it are both correct and correctly connected. But the model omits
+reasoning text unless you ask for a summary, and the logger skips empty
+entries — so **zero reasoning events across 2,395 events in 25 sessions.**
+
+Working code, wired correctly, that had never produced output. Invisible
+because nothing ever errored.
+### Building the hook layer
+
+The acceptance bar was that **nothing changes**: with no custom behavior
+registered, the loop must behave exactly as before. That sounds like a wasted
+milestone and isn't — it is what makes it safe to hang three subsystems off the
+loop afterward.
+
+**Handlers modify a shared object rather than returning a replacement.** With
+several handlers on one hook, a returned "nothing" is ambiguous: did the
+handler mean *replace this with nothing*, or *I had nothing to say*? Those need
+opposite handling, and this project has been bitten by that exact ambiguity at
+nearly every step. Mutating a shared object has no such gap.
+
+**The after-a-tool hook runs outside the error handling around the tool call.**
+The existing code already warns that a logging failure after a successful tool
+call must not be reported to the model as the tool having failed. The same
+applies here: a crash in *observation* must never cost a real result. Verified
+— a handler that throws leaves the turn alive, the tool result intact, and an
+error in the log.
+
+**All three ways a turn can end funnel through one place.** A turn can finish
+normally, or hit its action limit, or fail on an API error. Firing the
+end-of-turn hook at each of those three exits would have been three chances to
+miss one, and the miss would have been nearly invisible — because in week 1's
+longest session, *every single turn* left through one of the two non-obvious
+exits. A hook wired only to the obvious path would have passed every short test
+while reporting nothing in production.
+
+**A 10-test offline suite replaces what the retired mirror took with it.** No
+test-runner dependency, no network, no cost. It is narrower than byte-for-byte
+parity was — it only covers the hook points — but it covers the specific thing
+parity was protecting here: that adding hooks didn't change what the loop does.
+Two of the ten exist purely because of the three-exits problem above.
+
+### Building the observability layer
+
+#### The finding that reordered the project
+
+The first thing the new session reporter did, pointed at week 1's logs, was
+surface something no planning had predicted:
+
+**56 of 68 turns ended by hitting their spending limit. Only 12 finished.**
+
+The arithmetic explains it exactly. About 11,562 input tokens per response,
+times 4.7 responses per turn, is **~59,890 tokens against a 60,000 limit.**
+Because the whole conversation is re-sent on every response, the agent was
+spending its entire allowance re-reading its own history rather than doing
+work.
+
+That reframes caching from a cost optimization into a **capability fix**. The
+turn budget is charged for tokens we pay full price for, so cached tokens stop
+consuming it — most of those 56 cut-off turns should start finishing.
+
+Nothing in the plan anticipated this. It fell straight out of building the
+instrument before the things it measures, which was the entire reason for
+sequencing observability first.
+
+#### Truncation was being recorded as success
+
+When the model's reply hit its output ceiling and got cut off mid-sentence, the
+harness classified it as a normally completed turn and appended the
+half-finished text to the conversation as if it were final.
+
+Measured at 1 in 404 responses, so rare rather than systemic. We deliberately
+built **no retry machinery** — at that rate it would be more risk than the
+problem. The fix was to stop hiding it: truncation now has its own stop reason,
+its own log entry, and is reported as "truncated" rather than "completed". We
+also raised the output ceiling from 1024 to 4096 tokens, which costs nothing
+since billing is on tokens produced, not on the cap. Expect the rate to climb
+now that reasoning tokens count against that same ceiling — but now we will see
+it.
+
+### Prompt caching
+
+**Verified against the live API, not just in tests.** Two real calls sharing a
+prefix. The second read **1,727 of 1,745 input tokens from cache — 99% — and
+cost 89% less.** That was with only 5 tools registered; the real MUD build has
+about 30, so the cached portion is substantially larger.
+
+The live check mattered. Every way of getting caching wrong — a misplaced
+marker, a prefix that shifts by one byte between requests, a prefix below the
+minimum cacheable size — produces the *same* symptom as working-but-not-saving:
+no error, just a cache that never fills. Offline tests can assert the shape of
+the request; only a real call tells you it hit.
+
+**Two markers, not one, and the reason is worth keeping.** The
+conversation-side marker grows as the conversation does — but it is worthless
+at exactly the moment the conversation gets compacted or cleared. The
+system-side marker is the stable anchor that still works then. It also covers
+the tool definitions, and those (not the ~600-token system prompt) are what
+carry the cached portion over the minimum size. A marker on the system prompt
+alone would have silently never cached.
+
+**Shipped on by default, against the plan's own decision.** It was scoped as
+opt-in. Given the 74:1 input ratio and the 82% cut-off finding, leaving it off
+became the riskier choice: default-on fails visibly in the reporter, while
+default-off fails by the measurement simply never happening. There is a
+config kill-switch.
+
+### A pattern worth naming
+
+Four separate defects this week shared one shape, and it is worth recording as
+a category rather than four incidents:
+
+**Code that is present, correct, connected — and silently wrong or silently
+doing nothing.**
+
+- Cost estimation: fully implemented, never called.
+- Reasoning logging: correct on both ends, zero events ever produced.
+- Truncation: recorded as successful completion.
+- Context accounting: correct today, would break the day caching was enabled.
+
+None of them raised an error. None failed a test. None would show up in a diff
+review. They surfaced only by running an instrument over real data, or by
+tracing one value end to end. On this project, *"it doesn't crash" and "it
+works" have been different claims at nearly every step* — and the gap between
+them is where most of our real bugs have lived.
+
+### Operational notes
+
+- A stale 34-character placeholder API key in `.boukensha/.env` produces a 401
+  that looks like a billing or permissions problem. The real key lives in the
+  repo-root `.env`. Config loads the placeholder, so anything relying on its
+  environment loading gets the dummy. Worth deleting so the next person doesn't
+  lose time to it.
+- Session logs and memory files are committed for instructor evaluation. The
+  logging fix above is what makes that sustainable — without it, a serious
+  grind run would add tens of megabytes.
 
 ## Technical Conclusions
 <!-- Written at the end of the week. -->
