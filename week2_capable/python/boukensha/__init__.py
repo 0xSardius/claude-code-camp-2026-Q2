@@ -195,7 +195,7 @@ def run(
         setup(RunDSL(registry))
 
     if backend == "anthropic":
-        be = Anthropic(api_key=api_key, model=model)
+        be = Anthropic(api_key=api_key, model=model, cache=cfg.agent_prompt_caching())
     elif backend == "openai":
         be = OpenAI(api_key=api_key, model=model)
     elif backend == "gemini":
@@ -328,7 +328,7 @@ def repl(
             setup(RunDSL(registry))
 
         if backend == "anthropic":
-            be = Anthropic(api_key=api_key, model=model)
+            be = Anthropic(api_key=api_key, model=model, cache=cfg.agent_prompt_caching())
         elif backend == "openai":
             be = OpenAI(api_key=api_key, model=model)
         elif backend == "gemini":

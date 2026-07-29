@@ -52,10 +52,17 @@ class Anthropic(Base):
         },
     }
 
-    def __init__(self, *, api_key, model):
+    CACHE_CONTROL = {"type": "ephemeral"}  # 5-minute TTL (write ~1.25x, read ~0.1x)
+
+    def __init__(self, *, api_key, model, cache=True):
         super().__init__()
         self._api_key = api_key
+        self._cache = cache
         self._configure_model(model)
+
+    @property
+    def cache_enabled(self):
+        return self._cache
 
     def to_messages(self, system, messages):
         result = []
@@ -93,13 +100,62 @@ class Anthropic(Base):
             for tool in tools.values()
         ]
 
+    # Prompt caching (week2 token M2). Caching is a PREFIX match: the API
+    # renders tools -> system -> messages, and a breakpoint caches everything
+    # from the start of the request up to that point. Any byte change anywhere
+    # in the prefix invalidates everything after it.
+    #
+    # Two breakpoints, which do different jobs:
+    #
+    #   1. Last system block. Covers tools + system -- a stable anchor that
+    #      still hits after the conversation is compacted or cleared, which is
+    #      exactly when the message-side entry is worthless. The tool block is
+    #      also what carries this prefix over the 1024-token minimum: the
+    #      system prompt alone is ~600 tokens and would silently never cache
+    #      (no error, just cache_creation_input_tokens: 0).
+    #
+    #   2. Last content block of the last message. Grows with the conversation,
+    #      so each request writes a slightly longer prefix and reads the one
+    #      the previous request wrote.
+    #
+    # Max 4 breakpoints per request; two leaves headroom.
+    #
+    # Known gap: _wrap_up calls with tools=[], a different prefix, so the
+    # wind-down call can never hit the tools+system entry. That is one call per
+    # turn and 82% of week1 turns ended in a wind-down -- worth revisiting if
+    # the reporter shows the hit rate capped well below expectations.
+    def _cached_system(self, system):
+        if not system:
+            return system
+        return [{"type": "text", "text": system, "cache_control": self.CACHE_CONTROL}]
+
+    def _mark_last_message(self, messages):
+        if not messages:
+            return messages
+        last = dict(messages[-1])  # copy: never mutate Context's own message
+        content = last.get("content")
+        if isinstance(content, str):
+            if not content:
+                return messages
+            last["content"] = [{"type": "text", "text": content, "cache_control": self.CACHE_CONTROL}]
+        elif isinstance(content, list) and content:
+            blocks = list(content)
+            blocks[-1] = {**blocks[-1], "cache_control": self.CACHE_CONTROL}
+            last["content"] = blocks
+        else:
+            return messages
+        return messages[:-1] + [last]
+
     def to_payload(self, context, *, max_output_tokens=1024, tools=None):
+        messages = self.to_messages(context.system, context.messages)
+        if self._cache:
+            messages = self._mark_last_message(messages)
         payload = {
             "model": self.model,
-            "system": context.system,
+            "system": self._cached_system(context.system) if self._cache else context.system,
             "max_tokens": max_output_tokens,
             "tools": self.to_tools(context.tools) if tools is None else tools,
-            "messages": self.to_messages(context.system, context.messages),
+            "messages": messages,
         }
         # Ask for a readable summary of the model's reasoning.
         #

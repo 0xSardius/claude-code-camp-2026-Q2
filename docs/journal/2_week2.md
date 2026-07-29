@@ -209,6 +209,36 @@ other characters.
   real data on whether the rate climbs — and it should, since thinking tokens
   now count against that same ceiling.
 
+- Shipped prompt caching (token M2) and verified it against the live API rather
+  than trusting the payload shape: two real calls sharing a prefix, the second
+  reading **1,727 of 1,745 input tokens from cache (99%), 89% cheaper on that
+  call**. Worth doing the live check — every way of getting caching wrong (a
+  misplaced breakpoint, a prefix that drifts by a byte, a prefix under the
+  1024-token minimum) produces the *same* symptom as success-minus-savings: no
+  error, just `cache_creation_input_tokens: 0` forever. The offline tests can
+  only assert the shape; they cannot tell you it hit.
+- Changed the plan's own decision while implementing: caching was scoped as an
+  opt-in setting and shipped **defaulting ON** with a config kill-switch
+  instead. The measured 74:1 input ratio plus the 82%-of-turns-cut-off finding
+  made "build it and leave it off" the riskier option — the failure mode of
+  default-on is a bad run we can see in the reporter, while the failure mode of
+  default-off is that the measurement never happens.
+- Two breakpoints rather than one, and the reasoning is worth keeping: the
+  message-side breakpoint is the one that grows with the conversation, but it
+  is worthless exactly when the conversation is compacted or cleared. The
+  system-side breakpoint is the stable anchor that still hits at that moment —
+  and the ~30 tool schemas, not the ~600-token system prompt, are what carry
+  that prefix over the 1024-token minimum. A breakpoint on the system prompt
+  alone would have silently never cached.
+- Operational gotcha found while verifying: `.boukensha/.env` contains a
+  34-character placeholder `ANTHROPIC_API_KEY` that produced a 401, while the
+  real 108-character key lives in the repo-root `.env`. `Config._load_env`
+  loads the former, so anything relying on config's own env loading gets the
+  dummy. Worked around by sourcing the root `.env` before the process starts
+  (python-dotenv does not override an already-set variable) — but the stale
+  placeholder is worth deleting so the next person doesn't lose time to a 401
+  that looks like a billing or permissions problem.
+
 ## Technical Conclusions
 <!-- Written at the end of the week. -->
 

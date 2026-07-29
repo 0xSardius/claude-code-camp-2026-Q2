@@ -102,6 +102,14 @@ class Config:
         v = self.dig("agent", "max_turn_tokens")
         return 60_000 if v is None else int(v)
 
+    def agent_prompt_caching(self) -> bool:
+        # Kill-switch for Anthropic prompt caching. Defaults ON: it is the
+        # single largest lever for this workload (input outweighs output
+        # 74:1) and it relieves the turn-budget ceiling that cut off 82% of
+        # week1 turns. Set `agent.prompt_caching: false` to disable.
+        v = self.dig("agent", "prompt_caching")
+        return True if v is None else bool(v)
+
     def agent_compaction_threshold(self) -> float:
         v = self.dig("agent", "compaction_threshold")
         return 0.85 if v is None else float(v)

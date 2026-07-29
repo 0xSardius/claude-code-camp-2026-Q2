@@ -175,9 +175,30 @@ per turn, per tool, and per iteration using the observability summary reporter.
 No optimization yet. This number is what every later milestone is measured
 against, so capture it before touching anything.
 
-**M2 — Prompt caching.** `to_payload` breakpoints, gated behind an opt-in
-setting. Verify with `cache_read_input_tokens`, then re-run M1's session shape
-and diff the spend.
+**M2 — Prompt caching. DONE 2026-07-28.** Two breakpoints in
+`backends/anthropic.py::to_payload`: one on the last system block (covers
+tools + system — a stable anchor that still hits after compaction or `/clear`,
+and the tool schemas are what carry the prefix over the 1024-token minimum),
+one on the last content block of the last message (grows with the
+conversation). Kill-switch is `agent.prompt_caching` in settings.yaml,
+**defaulting ON** rather than opt-in as originally planned — the measured 74:1
+input ratio and the 82% turn-cutoff finding made the case decisive.
+
+Verified live, two real calls sharing a prefix:
+
+| | fresh input | cache write | cache read |
+|---|---|---|---|
+| call 1 | 2 | 1,727 | 0 |
+| call 2 | 2 | 16 | **1,727** |
+
+99% of call 2's input served from cache; 89% cheaper than uncached on that
+call. Measured with only 5 tools registered — the real MUD build has ~30, so
+the cached prefix (and the absolute saving) is substantially larger.
+
+Known gap, unresolved: `_wrap_up` calls with `tools=[]`, a different prefix, so
+the wind-down call can never hit the tools+system entry. That is one call per
+turn, and 82% of week1 turns ended in a wind-down. Revisit if the reporter
+shows the hit rate capping well below expectations.
 
 **M3 — `after_tool` output trimming.** Depends on memory M3 (facts written)
 so trimming is non-destructive. Re-measure.
