@@ -178,7 +178,7 @@ Facts written at `after_tool` (a successful `move` records a route edge; a
 Append-only with respect to the message list — see the hooks plan's hard
 constraint; a memory write must never splice into conversation history.
 
-**M4 — Bakery proof run.**
+**M4 — Bakery proof run. DONE 2026-07-29 (PASS on the second attempt).**
 Two runs against the live MUD with the same starting character state. Run one:
 the agent explores and finds the bakery, recording as it goes. Run two: with the
 store warm, the agent goes there.
@@ -188,7 +188,7 @@ with no memory read in the log is a **failure** of this milestone, not a pass �
 it means it guessed again.
 Then: list the menu, and get back.
 
-**M5 — Learnings read-back.**
+**M5 — Learnings read-back. MECHANISM BUILT, UNDEMONSTRATED.**
 The agent writes an efficiency observation and later consults it before choosing
 what to fight. This is the piece the scale-up goal needs and the piece most
 likely to be quietly skipped, because facts alone will make the bakery run pass.

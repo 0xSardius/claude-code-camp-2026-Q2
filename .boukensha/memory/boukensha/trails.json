@@ -1,0 +1,79 @@
+{
+  "edges": [
+    [
+      "the temple of midgaard#06357f",
+      "south",
+      "the temple square#9081dc"
+    ],
+    [
+      "the temple square#9081dc",
+      "south",
+      "market square#9081dc"
+    ],
+    [
+      "market square#9081dc",
+      "west",
+      "main street#9081dc"
+    ],
+    [
+      "main street#9081dc",
+      "north",
+      "the bakery#7e3fb5"
+    ]
+  ],
+  "rooms": {
+    "main street#9081dc": {
+      "description": "You are on the main street passing through the City of Midgaard.  South of here is the entrance to the Armory, and the bakery is to the north.  East of here is the market square.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-07-29",
+      "name": "Main Street"
+    },
+    "market square#9081dc": {
+      "description": "You are standing on the market square, the famous Square of Midgaard. A large, peculiar looking statue is standing in the middle of the square. Roads lead in every direction, north to the temple square, south to the common square, east and westbound is the main street.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-07-29",
+      "name": "Market Square"
+    },
+    "the bakery#7e3fb5": {
+      "description": "You are standing inside the small bakery.  A sweet scent of danish and fine bread fills the room.  The bread and Danish are arranged in fine order on the shelves, and seem to be of the finest quality. A small sign is on the counter.",
+      "exits": [
+        "south"
+      ],
+      "first_seen": "2026-07-29",
+      "name": "The Bakery"
+    },
+    "the temple of midgaard#06357f": {
+      "description": "You are in the southern end of the temple hall in the Temple of Midgaard. The temple has been constructed from giant marble blocks, eternal in appearance, and most of the walls are covered by ancient wall paintings picturing Gods, giants and peasants. Large steps lead down through the grand temple gate, descending the huge mound upon which the temple is built and ends on the temple square below. To the west, you see the Reading Room.  The donation room is in a small alcove to your east.",
+      "exits": [
+        "down",
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-07-29",
+      "name": "The Temple Of Midgaard"
+    },
+    "the temple square#9081dc": {
+      "description": "You are standing on the temple square.  Huge marble steps lead up to the temple gate.  The entrance to the Clerics' Guild is to the west, and the old Grunting Boar Inn, is to the east.  Just south of here you see the market square, the center of Midgaard.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-07-29",
+      "name": "The Temple Square"
+    }
+  }
+}

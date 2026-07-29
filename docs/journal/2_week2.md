@@ -61,9 +61,10 @@ other characters.
 
 ## Technical Observations
 
-**Status at time of writing (2026-07-28):** observability and token
-optimization are built and verified. Memory is next. The bakery run has not
-been attempted yet.
+**Status at time of writing (2026-07-29):** all three assigned capabilities
+are built and verified against the live game. The bakery proof passed on its
+second, corrected attempt. Remaining: learnings read-back is built but
+undemonstrated, and the leveling loop (a separate workstream) has not started.
 
 **Vocabulary, since everything below leans on it.** A *turn* is one instruction
 from a human plus all the work the agent does to answer it. An *iteration* is
@@ -369,6 +370,81 @@ The 63.9% is a floor, not a ceiling: this was a three-iteration turn with the
 filesystem and shell tools disabled, so the cached prefix was both smaller and
 reused fewer times than in a real play session. Only 5 input tokens were billed
 at full rate.
+
+### Memory, and a proof that failed before it passed
+
+The store, the model-facing tools, and the lifecycle write-discipline all
+landed (memory M1–M3). The design decisions are recorded in
+`docs/plans/week2/memory.md`; the two that mattered most in practice were
+storing **observed edges** rather than flat paths, and never inferring a
+reverse edge, since CircleMUD has one-way exits.
+
+#### The first proof attempt proved nothing
+
+The acceptance bar was deliberately strict: run once with empty memory, let it
+explore and record; run again and require that it *uses* what it recorded. A
+lucky second success counts as a failure.
+
+Run 2 came back reporting the correct menu — and by my own criterion it
+**failed**. Two flaws, both in the test rather than the system:
+
+1. **The character never moved.** The MUD persists where a character is
+   standing, so after run 1 found the Bakery, run 2 began *inside* the Bakery.
+   It read the menu without taking a single step. Navigation — the entire thing
+   under test — was never exercised.
+2. **The check measured the wrong thing.** It asked "did the agent call a
+   memory tool", and reported False. But the `before_turn` hook injects memory
+   into the conversation automatically; the log showed run 2 opening with three
+   user messages (the task, the `<memory>` block, the `<position>` block). The
+   agent had the knowledge and used it — it opened with *"already had this one
+   cased from a previous run"* — without ever needing to ask for it. The check
+   was blind to the mechanism the system actually uses.
+
+Fixing it meant a test fixture that walks the character back to the start room,
+and a better question: **did the agent walk the route it had recorded?**
+
+#### The second attempt
+
+Run 2, from the Temple of Midgaard, with memory warm:
+
+| | run 1 (exploring) | run 2 (knowing) |
+|---|---|---|
+| Iterations | 14 | **8** |
+| Cost | $0.0596 | **$0.0257** |
+| Cache hit rate | 91.1% | 95.8% |
+| Moves | 4, after searching | **4, no detours** |
+
+Recorded route: `south, south, west, north`. Route walked in run 2:
+`south, south, west, north` — identical, with no exploratory moves at all,
+then straight to the menu. **PASS.** Memory cut the work by 43% and the cost by
+57% on the same task.
+
+Two side observations. The real-session cache hit rates (91% and 96%) came in
+far above the smoke test's 63.9%, exactly as predicted — longer turns reuse the
+cached prefix more times. And an honest confound worth stating: Midgaard is a
+famous CircleMUD zone, so some of run 1's efficiency may come from the model's
+pretrained familiarity rather than pure exploration. The run 2 result does not
+depend on that, since what it proves is that the agent followed *its own
+recorded* route.
+
+#### A limitation the run exposed
+
+Facts deduplicate only on exact text. Run 2 recorded *"Confirmed again: The
+Bakery in Midgaard... sells..."* — semantically identical to a fact already
+stored, textually different, so it was kept. Three facts where two would do.
+Harmless at this size; not harmless across a level-7 grind, where the injected
+block is re-read on every iteration of every turn. Relevance filtering was
+flagged as a risk in the plan and is now a demonstrated one.
+
+#### Where memory stands
+
+M1–M4 are done and proven. **M5 (learnings read-back) is built but
+undemonstrated** — `remember_learning` writes, and learnings ride along in the
+automatic injection and in `recall`, so the mechanism is complete. What has not
+happened is a run where a recorded lesson visibly changes a later decision.
+That needs a grind-shaped task rather than a fetch-shaped one, so it belongs
+with the leveling work. Recording it as unproven rather than quietly counting
+the plumbing as the feature.
 
 ### A pattern worth naming
 
