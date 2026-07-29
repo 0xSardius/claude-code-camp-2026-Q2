@@ -293,6 +293,83 @@ became the riskier choice: default-on fails visibly in the reporter, while
 default-off fails by the measurement simply never happening. There is a
 config kill-switch.
 
+### First live run, and an infrastructure scare
+
+Everything above had been verified offline — 34 tests against a fake client,
+plus two isolated API calls. The harness had not touched the real game once
+since the fork, and in between we had changed the request payload, added a
+thinking parameter, raised the output ceiling, and inserted five hook points
+into the main loop. So: a deliberately narrow smoke run. Connect, look, read
+the character sheet, stop. No movement, no combat.
+
+It ran as `boukensha`, the disposable test character, **not** `dummy`. Running
+a never-before-run build against the character holding the week's progress is
+the setup that goes wrong.
+
+#### The scare: all three characters appeared to be deleted
+
+The first attempt failed at login, and probing the server directly returned
+CircleMUD's new-character prompt — *"Did I get that right, Boukensha (Y/N)?"* —
+for `boukensha`, `dummy`, **and** `balthasar`. On its face: every character
+gone, including `dummy` with the week's grinding on it.
+
+The obvious response would have been to answer Y and recreate them. That would
+have been the destructive mistake, because the data was never lost.
+
+What actually happened: the container's bind mount had silently detached. The
+compose file mounts the host's `lib/` into the container, and `docker inspect`
+confirmed the mount *was* configured. But the container's view of
+`plrfiles/A-E/` held only the empty seed file, while the host held
+`dummy.plr`, `balthasar.plr`, `boukensha.plr` and an index recording dummy at
+level 4. Host files carried write timestamps from Jul 18 through Jul 26 — so
+the mount had worked during every past play session and stopped afterward. The
+container had auto-restarted around Jul 27 under `restart: unless-stopped`,
+and on WSL2 a restart where the host path isn't ready yet leaves Docker
+serving an empty directory in its place, with no error anywhere.
+
+`docker compose down && up -d` re-established the mount. All three characters
+returned, dummy still at level 4.
+
+Two things worth keeping from this. **A failure that presents as "the data is
+gone" deserves investigation before remediation** — the remediation here
+(recreate the characters) would have caused the exact loss the symptom
+suggested had already happened. And the setup has a standing risk: any
+auto-restart can silently detach the mount again, and nothing in the harness
+would notice. A pre-flight check that the server can see the expected player
+index would catch it cheaply.
+
+Also worth flagging separately: our own probe used a *read-only* login
+sequence and deliberately never answered the Y/N prompt, because answering
+would have created a character. When the agent itself hit the same prompt on
+the first run, it refused to answer it and stopped — correctly, and without
+being told about that specific case. It had been told not to act on anything
+unexpected, and it treated an unrecognised confirmation prompt as exactly
+that.
+
+#### What the live run proved
+
+One turn, three iterations, ended `completed`:
+
+| | |
+|---|---|
+| Billed input tokens | **5** |
+| Cache read | 9,545 |
+| Cache write | 5,389 |
+| Cache hit rate | **63.9%** |
+| Reasoning events | **2** |
+| Cost | $0.0190, priced on 3/3 responses |
+| Truncations | 0 |
+
+Every week 2 change is now confirmed against the real game rather than a fake
+client. Caching hits in a live session, not just on two synthetic calls. Cost
+reporting produces real numbers on every response. And the reasoning pipeline
+that had produced **zero events across 2,395** now emits them.
+
+The 63.9% is a floor, not a ceiling: this was a three-iteration turn with the
+filesystem and shell tools disabled, so the cached prefix was both smaller and
+reused fewer times than in a real play session. Only 5 input tokens were billed
+at full rate.
+
 ### A pattern worth naming
 
 Four separate defects this week shared one shape, and it is worth recording as
@@ -322,6 +399,20 @@ them is where most of our real bugs have lived.
 - Session logs and memory files are committed for instructor evaluation. The
   logging fix above is what makes that sustainable — without it, a serious
   grind run would add tens of megabytes.
+- **The MUD container can silently lose its bind mount on an auto-restart**
+  (see the live-run section). Symptom: every character appears not to exist.
+  Fix: `docker compose down && docker compose up -d` from
+  `week0_explore/infrastructure`. Check before a long run rather than after —
+  the player files live on the host at `lib/plrfiles/A-E/`, so if the container
+  can see those, the mount is healthy.
+- `mud_session.Session.close()` sets its socket to `None` while the reader
+  thread is still blocked in `recv`, so closing prints an `AttributeError`
+  traceback from the dying thread. Cosmetic — the output has already been
+  captured by then — but it will clutter every log that closes a session
+  cleanly. Not fixed yet; noted so it isn't mistaken for a real failure.
+- `bin/report` changes directory before invoking Python, which silently
+  reinterpreted relative path arguments against `python/` instead of the
+  caller's directory. Fixed by resolving arguments to absolute paths first.
 
 ## Technical Conclusions
 <!-- Written at the end of the week. -->

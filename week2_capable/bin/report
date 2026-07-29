@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
-# Session summary reporter. Resolves logs from the repo-root .boukensha/
-# (same directory examples/example.py points at), not ~/.boukensha.
-cd "$(dirname "$0")/../python"
-export BOUKENSHA_DIR="${BOUKENSHA_DIR:-$(cd ../.. && pwd)/.boukensha}"
-uv run python -m boukensha.report "$@"
+# Session summary reporter. With no arguments, reports on every session in the
+# repo-root .boukensha/sessions. With arguments, reports on those files.
+set -euo pipefail
+root="$(cd "$(dirname "$0")/../.." && pwd)"
+[ -f "$root/.env" ] && { set -a; . "$root/.env"; set +a; }
+
+# Resolve path args to absolute BEFORE cd'ing -- otherwise a relative path the
+# user typed from their own cwd is silently reinterpreted against python/.
+args=()
+for a in "$@"; do
+  case "$a" in
+    --*) args+=("$a") ;;
+    /*)  args+=("$a") ;;
+    *)   args+=("$(cd "$(dirname "$a")" 2>/dev/null && pwd)/$(basename "$a")") ;;
+  esac
+done
+
+cd "$root/week2_capable/python"
+export BOUKENSHA_DIR="${BOUKENSHA_DIR:-$root/.boukensha}"
+exec uv run python -m boukensha.report ${args+"${args[@]}"}
