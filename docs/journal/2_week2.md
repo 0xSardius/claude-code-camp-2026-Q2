@@ -566,16 +566,62 @@ well-intentioned, and still measure the wrong thing — and a strict test that
 measures the wrong thing is worse than a loose one, because its failures look
 authoritative.
 
-### The cost of retiring the parity check is still outstanding
+### The cost of retiring the parity check was real, and it was 18 bugs
 
 Week 1's byte-for-byte Ruby/Python diff caught a real bug on nearly every step.
 Retiring it was correct — week 2's features have no original to port from — but
-the stated replacement was independent code review, **and that did not run
-until the very end of the week**. 68 offline tests are real but not independent:
-they were written by the same author, against the same understanding, at the
-same time as the code. On this project's track record that is not a comfortable
-place to submit from. The review commissioned at the end of the week is the
-mitigation, not a formality.
+the stated replacement was independent code review, and that **did not run until
+the very end of the week**. The concern was that 68 offline tests, written by
+the same author against the same understanding at the same time as the code,
+are not an independent check.
+
+That concern was correct, and the size of it is the sharpest number the week
+produced. A five-dimension adversarial review (25 agents, findings verified by
+separate agents instructed to refute them) raised 20 findings and **18 survived
+verification: 7 high, 8 medium, 3 low.** Every one of them was in code that 68
+tests passed on.
+
+The seven high-severity ones were not cosmetic:
+
+- **Live HP was recorded and never read.** `hp_now` was written off the status
+  prompt on nearly every reply; the injected memory block showed the HP from
+  the last `score` instead. The agent could sit at 6/30 being told it was at
+  full health — directly undercutting the system prompt's flee-below-half rule.
+- **An unparseable move fabricated a map edge.** A dark room has no exits line,
+  so parsing declined and the position belief went stale; the *next* successful
+  move then recorded an edge between two rooms that are not adjacent. Persisted
+  to disk, surviving sessions, with `find_route` handing back that wrong
+  direction confidently from then on.
+- **Speech lines became room names.** Parsing took the first line above the
+  exits block and only then validated it, so a mob talking, a gossip line, or
+  `mud_connect`'s own banner became the room *name* and a phantom room was
+  written permanently.
+- **The turn budget ignored cache writes** — which bill at 1.25×, *more* than
+  fresh input. Every iteration extends the prefix, so every iteration writes: a
+  long turn could spend six figures of token-equivalents while the counter read
+  a few thousand and the ceiling never tripped.
+- **The wind-down call wrote a cache entry nothing could ever read.** Its
+  `tools=[]` prefix differs from every normal call, so it never hit the cache
+  but still wrote the whole end-of-turn conversation at 1.25× — about 25% *more*
+  expensive than not caching, on the largest context of the turn, on the
+  majority of turns.
+- **The reporter's per-turn figures were inflated**, because the turn-count
+  fallback was applied across the whole aggregate instead of per session.
+- **`after_turn` missed two exit paths** — `TurnInterrupted` and a main-loop
+  `ApiError` — in the very mechanism whose comment claims all exits are covered,
+  written specifically because three exits had already been easy to miss.
+
+All 18 were fixed and 12 regression tests added (81 total). But the lesson is
+not "we fixed them." It is that **a week of green tests said nothing about any
+of this**, and the only reason it was caught is that the check was run before
+submitting rather than after. Deferring it to the end of the week was the
+single largest self-inflicted risk of the week, and next time it goes per
+milestone as the plan originally said.
+
+Note also what this does to the "silently wrong" category above: four such bugs
+were found by instrumentation during the week, and the review found more of the
+same shape — `hp_now` written and never read is precisely it. That category is
+now the dominant failure mode on this project by a wide margin.
 
 ### Answers to the week's open questions
 
@@ -608,8 +654,17 @@ of it crashed, so none of it was visible. **The hardest bugs on this project
 have not been the ones that fail loudly — they have been working, wired,
 plausible code that quietly does nothing or reports the wrong number, and the
 only reliable way to find them has been to measure real behavior rather than
-read the code.** That is also why the biggest self-inflicted risk this week was
-process rather than code: retiring week 1's parity check without immediately
-replacing it with independent review meant running for a week on tests I wrote
-against my own assumptions, which is precisely the blind spot that category of
-bug lives in.
+read the code.**
+
+The end-of-week code review then made the same point twice over, and much more
+expensively. Retiring week 1's parity check without immediately replacing it
+with independent review meant running for a week on tests written against my
+own assumptions — and when the review finally ran it confirmed **18 defects, 7
+of them high severity, in code that 68 passing tests were entirely happy with**:
+live HP recorded and never read while the agent was told it was at full health;
+a map edge fabricated between rooms that are not adjacent and persisted to
+disk; speech lines saved as room names. All fixed, with regression tests. But
+the durable lesson is the shape of the gap rather than the fixes: **an
+independent check is not a formality you run when convenient, and the interval
+between deciding to skip it and finding out what it would have caught is
+exactly as long as you let it be.**

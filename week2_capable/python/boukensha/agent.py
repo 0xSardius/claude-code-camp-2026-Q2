@@ -97,7 +97,27 @@ class Agent:
         self._context.reset_turn_tokens()
         self._compact_if_needed()
         self._fire(Hook.BEFORE_TURN)
+        # after_turn must cover EVERY way out, including the ways that raise.
+        # The three `return` paths were funnelled through _finish_turn, but a
+        # TurnInterrupted (TUI cancel) or an ApiError escaping the main loop
+        # left the turn without ever firing it -- so a handler counting turns
+        # or spend would under-count exactly the turns most worth counting.
+        # Found by code review, after this class's own comment claimed all
+        # exits were covered. Fire and re-raise: the caller still sees the
+        # exception, handlers just stop missing it.
+        try:
+            return self._run_loop()
+        except (TurnInterrupted, ApiError) as e:
+            self._fire(
+                Hook.AFTER_TURN,
+                reason=type(e).__name__,
+                text=None,
+                iterations=self._iteration,
+                tokens=self._context.turn_tokens,
+            )
+            raise
 
+    def _run_loop(self):
         while True:
             # Cooperative-cancellation checkpoint (Python-only, see module
             # docstring) -- checked before starting a new iteration, not
@@ -189,7 +209,19 @@ class Agent:
         # Simplification accepted: cache reads DO still cost ~0.1x, so charging
         # them at zero slightly under-counts spend. Weighting them is not worth
         # the complexity until the reporter shows it mattering.
-        self._context.add_turn_tokens(tokens["billable_input"], tokens["output"])
+        #
+        # Cache WRITES are a different matter and were a real bug: they bill at
+        # 1.25x, MORE than fresh input, and were being charged zero. Every
+        # iteration extends the prefix, so every iteration writes -- meaning a
+        # long turn could spend six figures of token-equivalents while
+        # turn_tokens read a few thousand, the budget never tripped, and
+        # turn_end reported a number ~20x below what was actually paid. The
+        # original comment justified excluding reads and never considered
+        # writes at all. Found by code review.
+        self._context.add_turn_tokens(
+            (tokens["billable_input"] or 0) + (tokens["cache_write"] or 0),
+            tokens["output"],
+        )
         # CACHE-AWARE (week2, and a real bug fix): `usage.input_tokens` is the
         # UNCACHED REMAINDER only -- the true prompt size is
         # input + cache_creation + cache_read. Passing the remainder here means

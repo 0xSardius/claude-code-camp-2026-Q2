@@ -77,16 +77,25 @@ def parse_room(text):
     if exits_at is None:
         return None
 
-    # The title is the first non-blank line above the exits block.
+    # The first PLAUSIBLE non-blank line above the exits block.
+    #
+    # Code review: this used to take the first non-blank line and then validate
+    # it, returning None if that one line failed. But a room reply is routinely
+    # preceded by unrelated output -- a mob speaking, a gossip channel line, or
+    # mud_connect's own "connected to host:port\n<welcome>" prefix. Those became
+    # the room NAME, the real title was swallowed into the description, and a
+    # phantom room plus phantom edges were written permanently to trails.json.
+    # Skipping implausible candidates instead of giving up on them fixes the
+    # common case without loosening the filters.
     title, title_at = None, None
     for i, raw in enumerate(lines[:exits_at]):
         ln = raw.strip()
-        if not ln:
+        if not ln or not _plausible_title(ln):
             continue
         title, title_at = ln, i
         break
 
-    if not _plausible_title(title):
+    if title is None:
         return None
 
     description = " ".join(
@@ -94,6 +103,20 @@ def parse_room(text):
     ).strip()
 
     return {"name": title, "exits": exits, "description": description or None}
+
+
+# Someone talking, emoting, or using a channel. These lines are prose, often
+# lack terminal punctuation (so the sentence filter misses them), and routinely
+# appear immediately above a room block.
+SPEECH = re.compile(
+    r"\b(says?|said|tells?|asks?|exclaims?|shouts?|yells?|whispers?|gossips?|"
+    r"auctions?|sings?|chats?|replies|answers|mutters|growls)\b[,:]?\s*['\"]",
+    re.IGNORECASE,
+)
+# Our own tool layer's output, not the game's.
+TOOL_TEXT = re.compile(
+    r"^(error\b|already |not connected|disconnected|connected to\b)", re.IGNORECASE
+)
 
 
 def _plausible_title(title):
@@ -104,8 +127,15 @@ def _plausible_title(title):
     # Room titles are labels, not sentences.
     if title.endswith((".", "!", "?")):
         return False
-    # Failure text from our own tool layer, not the game.
-    if re.match(r"^(error|already |not connected|disconnected)", title, re.IGNORECASE):
+    if TOOL_TEXT.match(title):
+        return False
+    # Code review: speech and channel lines were being accepted as room names,
+    # inventing phantom rooms. They are the most common thing to appear
+    # directly above a room block in a populated zone.
+    if SPEECH.search(title):
+        return False
+    # A quoted fragment is speech even when the verb is unusual.
+    if title.count("'") >= 2 or title.count('"') >= 2:
         return False
     return True
 

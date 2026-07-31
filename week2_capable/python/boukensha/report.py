@@ -44,24 +44,50 @@ class SessionReport:
 
     @classmethod
     def from_paths(cls, paths):
-        events, sources = [], []
+        events, sources, per_source = [], [], []
         for p in paths:
             path = Path(p)
             if not path.is_file():
                 continue
             sources.append(path)
+            own = []
             for line in path.read_text(encoding="utf-8").splitlines():
                 line = line.strip()
                 if not line:
                     continue
                 try:
-                    events.append(json.loads(line))
+                    own.append(json.loads(line))
                 except json.JSONDecodeError:
                     # A run killed mid-write leaves a torn final line. Skip it
                     # rather than refusing to report on the whole session --
                     # the interrupted runs are often the ones worth reading.
                     continue
-        return cls(events, sources=sources)
+            events.extend(own)
+            per_source.append(own)
+        report = cls(events, sources=sources)
+        report._per_source = per_source
+        return report
+
+    def _turn_count(self):
+        """Turns, counted PER SESSION with the turn_end fallback applied per
+        session rather than across the whole aggregate.
+
+        `logger.turn()` is emitted only by Repl.run_turn, while `turn_end`
+        comes from Agent itself -- so a session driven through Agent.run()
+        directly (every example script, and both bakery runs) logs turn_end and
+        no turn. Applying the fallback to the aggregate meant that as soon as
+        ONE source contained a `turn` event, every turn-less session
+        contributed its iterations and costs to the numerators of
+        cost_per_turn and iterations_per_turn while contributing nothing to the
+        denominator. Both metrics came out silently inflated. Found by code
+        review.
+        """
+        sources = getattr(self, "_per_source", None) or [self.events]
+        total = 0
+        for evs in sources:
+            turns = sum(1 for e in evs if e.get("phase") == "turn")
+            total += turns or sum(1 for e in evs if e.get("phase") == "turn_end")
+        return total
 
     @classmethod
     def from_default_dir(cls):
@@ -96,7 +122,7 @@ class SessionReport:
         read = tokens["cache_read_input_tokens"]
         total_in = tokens["input_tokens"] + read + tokens["cache_creation_input_tokens"]
 
-        n_turns = len(turns) or len(self._by_phase("turn_end"))
+        n_turns = self._turn_count()
         return {
             "sessions": len(self.sources),
             "events": len(self.events),
@@ -143,7 +169,7 @@ class SessionReport:
         add(f"  cache write          {_fmt_int(t.get('cache_creation_input_tokens', 0))}")
         rate = s["cache_hit_rate"]
         add(f"  cache hit rate       {f'{rate:.1%}' if rate is not None else 'n/a'}"
-            + ("   <- caching is not on" if rate == 0 else ""))
+            + ("   <- caching is not on" if rate == 0 and not t.get("cache_creation_input_tokens") else ""))
         add(f"  cost                 {_fmt_usd(s['cost_total'])}   (priced: {s['priced_responses']} responses)")
         if s["cost_per_turn"]:
             add(f"  cost per turn        {_fmt_usd(s['cost_per_turn'])}")

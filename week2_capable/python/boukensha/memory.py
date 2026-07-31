@@ -109,7 +109,22 @@ class Memory:
 
     def _write_json(self, name, data):
         # Write-then-rename so a crash mid-write can't truncate the real file.
+        #
+        # Code review: _read_json returns {} on a torn file, so without this
+        # the next write would silently overwrite a corrupt-but-recoverable
+        # trails.json with an empty one, destroying the whole learned map.
+        # Side the damaged file rather than clobbering it -- a human can
+        # salvage a truncated JSON file, but not a deleted one.
         p = self.path / name
+        if p.is_file():
+            try:
+                json.loads(p.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                salvage = p.with_suffix(p.suffix + ".corrupt")
+                try:
+                    os.replace(p, salvage)
+                except OSError:
+                    pass
         tmp = p.with_suffix(p.suffix + ".tmp")
         tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         os.replace(tmp, p)
@@ -150,6 +165,29 @@ class Memory:
     def set_goal(self, goal):
         return self.update_state(goal=goal)
 
+    def live_hp(self):
+        """Current HP, preferring the live value over the last `score`.
+
+        Code review found this as a dead write: `hp_now` (an int, read off the
+        status prompt that rides on nearly EVERY reply) was recorded and never
+        read, while `hp` (a "cur/max" string, written only when the model calls
+        `check`) was what got injected. So the memory block told the agent it
+        was at full health while it was at 6/30 -- directly undercutting the
+        system prompt's "flee below half HP" rule, and worse after a compaction
+        or /clear, where the regenerated block is the only surviving vitals.
+
+        Returns "cur/max" when the maximum is known, "cur" when only the live
+        value is, and the last `score` reading when there is no live value.
+        """
+        s = self.state
+        now, scored = s.get("hp_now"), s.get("hp")
+        if now is None:
+            return scored
+        maximum = None
+        if isinstance(scored, str) and "/" in scored:
+            maximum = scored.split("/", 1)[1].strip() or None
+        return f"{now}/{maximum}" if maximum else str(now)
+
     @property
     def position(self):
         return self.state.get("position")
@@ -162,12 +200,26 @@ class Memory:
     def facts(self):
         return self._read_text("facts.md").strip()
 
+    @staticmethod
+    def _fact_key(text):
+        # Collapse whitespace (including newlines) and strip the leading bullet
+        # so a multi-line fact, or one the model wrote starting with "- ",
+        # compares equal to its stored single-line form.
+        #
+        # Code review: the previous version compared the raw text against
+        # per-LINE entries, so any fact containing a newline could never match
+        # and duplicated on every write -- and duplicates are paid for on every
+        # iteration, since facts are injected into the conversation.
+        s = re.sub(r"\s+", " ", str(text or "")).strip()
+        return re.sub(r"^[-*]\s*", "", s).strip().lower()
+
     def add_fact(self, text):
-        text = str(text or "").strip()
+        text = re.sub(r"\s+", " ", str(text or "")).strip()
         if not text:
             return False
-        if text.lower() in (line.strip().lstrip("- ").lower()
-                            for line in self._read_text("facts.md").splitlines()):
+        key = self._fact_key(text)
+        existing = {self._fact_key(line) for line in self._read_text("facts.md").splitlines()}
+        if key in existing:
             return False  # already known; don't grow the file with duplicates
         self._append_line("facts.md", f"- {text}")
         return True
@@ -283,7 +335,11 @@ class Memory:
         if s.get("goal"):
             out.append(f"\n**Current goal:** {s['goal']}")
 
-        vitals = [f"{k}={s[k]}" for k in ("level", "hp", "exp", "gold") if s.get(k) is not None]
+        vitals = []
+        for k in ("level", "hp", "exp", "gold"):
+            v = self.live_hp() if k == "hp" else s.get(k)
+            if v is not None:
+                vitals.append(f"{k}={v}")
         if vitals:
             out.append(f"**Character:** {', '.join(vitals)}")
 
@@ -335,8 +391,11 @@ class Memory:
         ]
         for label, key in (("Level", "level"), ("HP", "hp"), ("Experience", "exp"),
                            ("Gold", "gold"), ("Goal", "goal")):
-            if s.get(key) is not None:
-                lines.append(f"- **{label}:** {s[key]}")
+            # HP prefers the live status-prompt value over the last `score`,
+            # same reasoning as context_block -- see live_hp().
+            value = self.live_hp() if key == "hp" else s.get(key)
+            if value is not None:
+                lines.append(f"- **{label}:** {value}")
         if s.get("position"):
             here = m["rooms"].get(s["position"], {})
             lines.append(f"- **Last seen:** {here.get('name', s['position'])}")

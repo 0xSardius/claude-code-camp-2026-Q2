@@ -84,12 +84,33 @@ def last_message_block_carries_a_breakpoint():
 def string_content_is_promoted_to_a_text_block():
     """cache_control lives on a content BLOCK, so a bare string has to become
     one first."""
-    ctx = Context(system="s", context_window=1_000_000)
+    ctx = ctx_with(messages=False)      # needs tools -- see the tools-less test below
     ctx.add_message("user", "hello")
     p = Anthropic(api_key="x", model="claude-sonnet-5", cache=True).to_payload(ctx)
     assert p["messages"][-1]["content"] == [
         {"type": "text", "text": "hello", "cache_control": CC}
     ], p["messages"][-1]
+
+
+@test
+def a_tools_less_call_gets_no_message_breakpoint():
+    """Caching is a prefix match and tools render FIRST, so a tools=[] call has
+    a different prefix from every normal call and can never read their cache.
+    Marking its last message wrote the whole end-of-turn conversation as a
+    fresh entry at 1.25x -- ~25% MORE than not caching -- on the biggest
+    context of the turn, for nothing to ever read. That is _wrap_up, which 82%
+    of week1 turns went through. Found by code review."""
+    be = Anthropic(api_key="x", model="claude-sonnet-5", cache=True)
+    ctx = ctx_with()
+    normal = be.to_payload(ctx)
+    wrapup = be.to_payload(ctx, tools=[])
+    assert breakpoints(normal) == 2, breakpoints(normal)
+    assert breakpoints(wrapup) == 1, breakpoints(wrapup)   # system anchor only
+    assert not any(
+        isinstance(b, dict) and "cache_control" in b
+        for m in wrapup["messages"] for b in (m.get("content") or [])
+        if isinstance(m.get("content"), list)
+    )
 
 
 @test
@@ -105,14 +126,26 @@ def caching_off_reproduces_the_pre_week2_payload():
 
 @test
 def marking_does_not_mutate_the_context():
-    """to_messages passes some content through by reference. Mutating it would
+    """to_messages passes some content through BY REFERENCE. Mutating it would
     corrupt the conversation itself, and the corruption would only show up as a
-    cache that never hits."""
-    ctx = ctx_with()
-    before = ctx.messages[-1].content
+    cache that never hits.
+
+    Code review flagged the earlier version of this test as not testing what it
+    claimed: it ended on a tool_result, whose content to_messages rebuilds into
+    a fresh list, so the by-reference path was never exercised and the test
+    would have passed even with a mutating implementation. This version ends on
+    an assistant message carrying a LIST, which to_messages passes through
+    without copying -- the actual risk."""
+    ctx = ctx_with(messages=False)
+    blocks = [{"type": "text", "text": "thinking about it"}]
+    ctx.add_message("assistant", blocks)
+    snapshot = [dict(b) for b in blocks]
+
     Anthropic(api_key="x", model="claude-sonnet-5", cache=True).to_payload(ctx)
-    assert ctx.messages[-1].content == before == "You walk north."
-    assert not isinstance(ctx.messages[-1].content, list)
+
+    assert ctx.messages[-1].content is blocks, "content object was replaced"
+    assert blocks == snapshot, f"Context's own blocks were mutated: {blocks}"
+    assert "cache_control" not in blocks[-1]
 
 
 @test

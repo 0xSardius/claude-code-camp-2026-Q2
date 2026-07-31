@@ -147,14 +147,25 @@ class Anthropic(Base):
         return messages[:-1] + [last]
 
     def to_payload(self, context, *, max_output_tokens=1024, tools=None):
+        resolved_tools = self.to_tools(context.tools) if tools is None else tools
         messages = self.to_messages(context.system, context.messages)
-        if self._cache:
+        # Skip the message breakpoint on a tools-less call.
+        #
+        # Caching is a prefix match and tools render FIRST, so a call with
+        # `tools: []` has a different prefix from every normal call and can
+        # never read their cache. Marking its last message therefore wrote the
+        # entire end-of-turn conversation as a fresh cache entry -- billed at
+        # 1.25x, i.e. ~25% MORE than not caching at all -- on the largest
+        # context of the turn, and nothing would ever read it. That is
+        # `_wrap_up`, which 82% of week1 turns went through. Found by code
+        # review.
+        if self._cache and resolved_tools:
             messages = self._mark_last_message(messages)
         payload = {
             "model": self.model,
             "system": self._cached_system(context.system) if self._cache else context.system,
             "max_tokens": max_output_tokens,
-            "tools": self.to_tools(context.tools) if tools is None else tools,
+            "tools": resolved_tools,
             "messages": messages,
         }
         # Ask for a readable summary of the model's reasoning.

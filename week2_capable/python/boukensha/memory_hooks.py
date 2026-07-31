@@ -126,12 +126,34 @@ class MemoryHooks:
         if payload.name in ROOM_TOOLS:
             previous = self._position
             room = self._record_room(text)
-            if room and payload.name == "move":
+            if payload.name == "move":
                 direction = (payload.args or {}).get("direction")
-                # Only record an edge we actually observed. No reverse is
-                # inferred -- CircleMUD has one-way exits.
-                if previous and direction and self._position:
-                    self.memory.record_move(previous, direction, self._position)
+                if room:
+                    # Only record an edge we actually observed. No reverse is
+                    # inferred -- CircleMUD has one-way exits.
+                    if previous and direction and self._position:
+                        self.memory.record_move(previous, direction, self._position)
+                else:
+                    # A move whose reply we could not parse. We do NOT know
+                    # whether the character moved -- a dark room ("It is pitch
+                    # black...") has no exits line and neither does a refusal
+                    # ("Alas, you cannot go that way."). Keeping the old
+                    # position would let the NEXT successful move record an
+                    # edge between two rooms that are not adjacent, and that
+                    # bogus edge is persisted, survives the session, and makes
+                    # find_route confidently hand back a wrong direction
+                    # forever after. Found by code review.
+                    #
+                    # Deliberate trade: forgetting the position also loses the
+                    # (correct) edge we could have recorded after a merely
+                    # FAILED move. Losing a real edge costs one re-walk;
+                    # recording a false one corrupts the map permanently.
+                    # Clearing _position -- not just setting _needs_look -- is
+                    # what makes this safe when several moves happen in a
+                    # single tool batch, since record_move rejects an empty
+                    # from-key and before_model only runs once per iteration.
+                    self._position = None
+                    self._needs_look = True
 
         if payload.name in POSITION_LOST_AFTER:
             # flee goes in a RANDOM direction; a (re)connect could land anywhere.

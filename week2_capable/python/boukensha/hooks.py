@@ -69,6 +69,13 @@ class HookPayload:
     # needing to declare every other hook's fields. __slots__ above keeps typos
     # on the FIXED fields loud while leaving the per-hook ones open.
     def __getattr__(self, name):
+        # __getattr__ runs only for attributes normal lookup missed -- which
+        # includes `extra` itself before __init__ has set it, or after an
+        # unpickle that bypasses __init__. Reading self.extra there recurses
+        # forever instead of raising AttributeError, so copy/pickle/inspect on
+        # a payload would hang rather than fail. Found by code review.
+        if name in self.__slots__:
+            raise AttributeError(name)
         try:
             return self.extra[name]
         except KeyError:
