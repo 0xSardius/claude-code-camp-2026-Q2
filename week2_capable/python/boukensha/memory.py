@@ -195,6 +195,34 @@ class Memory:
     def set_position(self, room_key):
         return self.update_state(position=room_key)
 
+    def clear_position(self):
+        """Forget where we think we are.
+
+        update_state ignores None (so a failed parse cannot erase a known
+        value), which means callers need an explicit way to say "this is now
+        unknown". Used on a fresh start: MemoryHooks declines to trust a stored
+        position because anything could have happened to the character while we
+        were not running -- but that rule only covered its own in-process
+        belief, while context_block, render_journal and find_route all kept
+        reading the stale stored value. Found by code review.
+        """
+        s = self.state
+        s.pop("position", None)
+        s["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        self._write_json("state.json", s)
+        return s
+
+    def live_moves(self):
+        """Movement points, live value preferred -- same shape as live_hp."""
+        s = self.state
+        now, scored = s.get("moves_now"), s.get("moves")
+        if now is None:
+            return scored
+        maximum = None
+        if isinstance(scored, str) and "/" in scored:
+            maximum = scored.split("/", 1)[1].strip() or None
+        return f"{now}/{maximum}" if maximum else str(now)
+
     # ---- facts and learnings (agent-written, Markdown) -------------------
 
     def facts(self):
@@ -336,8 +364,8 @@ class Memory:
             out.append(f"\n**Current goal:** {s['goal']}")
 
         vitals = []
-        for k in ("level", "hp", "exp", "gold"):
-            v = self.live_hp() if k == "hp" else s.get(k)
+        for k in ("level", "hp", "moves", "exp", "gold"):
+            v = self.live_hp() if k == "hp" else self.live_moves() if k == "moves" else s.get(k)
             if v is not None:
                 vitals.append(f"{k}={v}")
         if vitals:

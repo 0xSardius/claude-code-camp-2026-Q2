@@ -139,9 +139,13 @@ class Agent:
 
             self._iteration += 1
             self._logger.iteration(n=self._iteration, max=self._max_iterations)
-            self._logger.prompt(messages=self._context.messages, tools=self._context.tools, context_window=self._context.context_window)
-
+            # before_model runs FIRST: its handlers append messages (the
+            # position block, and anything a future handler injects), so
+            # logging the prompt beforehand recorded a message list that is not
+            # the one sent to the API. Found by code review.
             self._fire(Hook.BEFORE_MODEL, iteration=self._iteration)
+
+            self._logger.prompt(messages=self._context.messages, tools=self._context.tools, context_window=self._context.context_window)
 
             response = self._client.call(**self._call_opts())
             self._logger.raw(data=response)
@@ -190,7 +194,7 @@ class Agent:
     # without it, current_tokens silently stays 0 for non-Anthropic
     # backends, so needs_compaction() never trips no matter how full the
     # real context window gets.
-    def _record_usage(self, response):
+    def _record_usage(self, response, *, update_context_size=True):
         tokens = self._usage_tokens(response)
         # max_turn_tokens is a SPEND ceiling (see this class's docstring), so
         # the turn budget is charged the billable input only -- cache reads are
@@ -235,7 +239,13 @@ class Agent:
         # method's own comment already documents (without which current_tokens
         # silently stays 0 for non-Anthropic backends) -- arriving by a new
         # route. Landed BEFORE caching is switched on, deliberately.
-        self._context.update_tokens(tokens["context_size"])
+        # Skipped for the wind-down call: it is built with tools=[], so its
+        # prompt size omits the entire tool-schema block. Since _wrap_up is the
+        # LAST thing a turn does, letting it win would leave current_tokens
+        # understated for the next turn's compaction check. Found by code
+        # review.
+        if update_context_size:
+            self._context.update_tokens(tokens["context_size"])
 
     def _usage_tokens(self, response):
         # Ruby: `response["usage"] || response["usageMetadata"] || response`
@@ -335,7 +345,7 @@ class Agent:
             text = self._extract_text(parsed_wrap["content"])
             if text.strip() == "":
                 text = self._fallback_message(reason)
-            self._record_usage(response)
+            self._record_usage(response, update_context_size=False)
             # No _log_reasoning call here -- Ruby's wrap_up never makes one
             # (only run()'s main loop does). Found by code review
             # (CONFIRMED): an extra call here logged a spurious "reasoning"

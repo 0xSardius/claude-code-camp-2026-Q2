@@ -38,6 +38,12 @@ class MemoryHooks:
         self._position = None
         self._needs_look = True
         self._injected_this_turn = False
+        # Apply that rule to the STORE too, not just to _position. Otherwise
+        # context_block, render_journal and find_route all keep serving the
+        # stale stored position while this object correctly considers it
+        # unknown -- and find_route would hand back a route computed from where
+        # the character was last session. Found by code review.
+        self.memory.clear_position()
 
     # ---- install ---------------------------------------------------------
 

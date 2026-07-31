@@ -104,11 +104,44 @@ def a_torn_state_file_does_not_make_the_agent_unrunnable():
 
 @test
 def writes_are_atomic():
-    """Write-then-rename: a crash mid-write must not truncate the real file."""
+    """Write-then-rename: a crash mid-write must not truncate the real file.
+
+    Code review flagged the earlier version as asserting nothing about
+    atomicity -- it wrote a value, read it back, and checked no .tmp remained,
+    all of which a plain in-place write would also satisfy. This version makes
+    the rename itself fail, which is the only way to tell the two apart: with
+    write-then-rename the original survives intact; with an in-place write it
+    would already be clobbered."""
+    import boukensha.memory as memory_mod
+
     m = store()
-    m.update_state(level=5)
-    assert json.loads((m.path / "state.json").read_text())["level"] == 5
-    assert not list(m.path.glob("*.tmp")), "temp file left behind"
+    m.update_state(level=5, hp="20/20")
+    original = (m.path / "state.json").read_text()
+
+    real_replace = memory_mod.os.replace
+    calls = []
+
+    def exploding_replace(src, dst):
+        # Let the quarantine path through; blow up on the real commit.
+        if str(dst).endswith("state.json"):
+            calls.append((src, dst))
+            raise OSError("simulated crash between write and rename")
+        return real_replace(src, dst)
+
+    memory_mod.os.replace = exploding_replace
+    try:
+        try:
+            m.update_state(level=99)
+        except OSError:
+            pass
+    finally:
+        memory_mod.os.replace = real_replace
+
+    assert calls, "os.replace was never used -- write is not rename-based"
+    assert (m.path / "state.json").read_text() == original, "original was clobbered"
+    assert m.state["level"] == 5, m.state
+    for tmp in m.path.glob("*.tmp"):
+        tmp.unlink()
 
 
 # --------------------------------------------------------------------------

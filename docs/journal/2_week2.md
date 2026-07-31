@@ -611,7 +611,7 @@ The seven high-severity ones were not cosmetic:
   `ApiError` — in the very mechanism whose comment claims all exits are covered,
   written specifically because three exits had already been easy to miss.
 
-All 18 were fixed and 12 regression tests added (81 total). But the lesson is
+All 18 were fixed and 17 regression tests added (86 total). Worth recording that the first fix round claimed all 18 and had actually closed 12 — the remaining six surfaced only on re-checking the claim against the finding list. Over-reporting your own remediation is the same failure as over-reporting a run: it needs verifying, not asserting. But the lesson is
 not "we fixed them." It is that **a week of green tests said nothing about any
 of this**, and the only reason it was caught is that the check was run before
 submitting rather than after. Deferring it to the end of the week was the

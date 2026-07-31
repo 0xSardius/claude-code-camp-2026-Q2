@@ -112,7 +112,17 @@ class SessionReport:
                 if isinstance(v, int):
                     tokens[key] += v
 
-        costs = [e["cost"] for e in responses if isinstance(e.get("cost"), (int, float))]
+        # 06_the_logger..11_tui wrote the cost under `cost_usd`; 12_context
+        # dropped it; week2 restored it as `cost`. Reading only one key made
+        # the reporter call genuinely-recorded week1 spend "unknown". Found by
+        # code review.
+        costs = []
+        for e in responses:
+            for key in ("cost", "cost_usd"):
+                v = e.get(key)
+                if isinstance(v, (int, float)):
+                    costs.append(v)
+                    break
         turns = self._by_phase("turn")
         iterations = self._by_phase("iteration")
         turn_ends = Counter(e.get("reason") for e in self._by_phase("turn_end"))

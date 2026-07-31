@@ -265,6 +265,74 @@ def hook_payload_getattr_does_not_recurse():
         raise AssertionError("expected AttributeError, not a value")
 
 
+# ---- second pass: findings the first fix round missed ----------------------
+
+@test
+def a_fresh_start_does_not_trust_the_stored_position():
+    """MemoryHooks declined to trust a stored position on startup, but only for
+    its own in-process belief -- context_block, render_journal and find_route
+    all kept reading the stale stored value, so find_route could hand back a
+    route computed from where the character was LAST session."""
+    d = Path(tempfile.mkdtemp())
+    m = Memory("t", dir=d)
+    m.set_position("somewhere#abc123")
+    MemoryHooks(Memory("t", dir=d))
+    assert Memory("t", dir=d).position is None
+
+
+@test
+def movement_points_are_rendered_from_the_live_value():
+    """moves_now was the other half of the dead-write finding: recorded on
+    nearly every reply, read by nothing, and not rendered at all."""
+    m = store()
+    m.update_state(moves="85/85")
+    m.update_state(moves_now=12)
+    assert "moves=12/85" in m.context_block()
+
+
+@test
+def the_wind_down_call_does_not_understate_context_size():
+    """_wrap_up builds its request with tools=[], so its prompt size omits the
+    whole tool-schema block. It is the LAST thing a turn does, so letting it
+    win left current_tokens understated for the NEXT turn's compaction check."""
+    ctx = Context(system="s", context_window=1_000_000)
+    a = Agent(context=ctx, registry=Registry(ctx),
+              builder=PromptBuilder(ctx, Anthropic(api_key="x", model="claude-sonnet-5")),
+              client=None, logger=Logger(dir=tempfile.mkdtemp()))
+    a._record_usage({"usage": {"input_tokens": 50_000, "output_tokens": 10}})
+    assert ctx.current_tokens == 50_000
+    a._record_usage({"usage": {"input_tokens": 900, "output_tokens": 10}},
+                    update_context_size=False)
+    assert ctx.current_tokens == 50_000, ctx.current_tokens   # not overwritten by the tools-less call
+    assert ctx.turn_tokens == 50_920                          # but still charged for spend
+    a._logger.close()
+
+
+@test
+def the_reporter_reads_week1_cost_under_its_own_key():
+    """06_the_logger..11_tui wrote cost as `cost_usd`; reading only `cost`
+    reported genuinely recorded week1 spend as 'unknown'."""
+    d = Path(tempfile.mkdtemp())
+    (d / "old.jsonl").write_text(
+        json.dumps({"phase": "turn_end", "reason": "completed"}) + "\n"
+        + json.dumps({"phase": "response", "cost_usd": 0.25,
+                      "usage": {"input_tokens": 10, "output_tokens": 2}}) + "\n")
+    s = SessionReport.from_paths([d / "old.jsonl"]).summary()
+    assert s["cost_total"] == 0.25, s["cost_total"]
+
+
+@test
+def the_prompt_log_reflects_what_was_actually_sent():
+    """The prompt event was logged BEFORE before_model fired, so any message a
+    handler appended (the position block) was missing from the record of the
+    request that carried it."""
+    import inspect
+    src = inspect.getsource(Agent._run_loop)
+    fire_at = src.index("Hook.BEFORE_MODEL")
+    log_at = src.index("self._logger.prompt(")
+    assert fire_at < log_at, "prompt is still logged before before_model fires"
+
+
 if __name__ == "__main__":
     failures = 0
     for fn in TESTS:
