@@ -491,7 +491,125 @@ them is where most of our real bugs have lived.
   caller's directory. Fixed by resolving arguments to absolute paths first.
 
 ## Technical Conclusions
-<!-- Written at the end of the week. -->
+
+### Against the four hypotheses
+
+**"Building observability first will make the other two pillars measurable
+rather than speculative" — confirmed, and more strongly than predicted.** The
+argument for sequencing it first was defensive: without spend and stall data,
+"did memory help?" is unanswerable except by impression. What actually happened
+was better than that. The first time the reporter ran over week 1's logs it
+found that **56 of 68 turns had been ending on the token ceiling rather than
+completing** — 82%, invisible for a week, and predicted by nothing in the plan.
+That single number reordered the token pillar and reframed caching from a cost
+optimization into a capability fix. Building the instrument first didn't just
+make the other work measurable; it changed what the other work was for.
+
+**"Prompt caching will dominate" — confirmed. The sub-claim about compaction is
+still untested.** Measurement put input against output at **74:1**, so caching
+acts on ~94% of spend. It shipped and hit 90.2% across the live runs, with
+$0.10 total spend and only 49 tokens billed at full input rate. But the
+prediction that `compact_messages()` would fight caching by invalidating the
+message prefix remains unproven: **compaction fired zero times** in any week 2
+run, because the sessions were short and the context window is 1M. That half of
+the hypothesis needs a long grind session to test, and it is the reason
+compaction rework was left undone rather than declared unnecessary.
+
+**"Memory keyed per-character, split into facts and learnings, will make the
+bakery run provably non-random" — confirmed for facts, unproven for
+learnings.** Run 2 walked exactly the route it had recorded, with no
+exploratory detours, at 43% fewer iterations and 57% lower cost than run 1. The
+facts half is demonstrated. The learnings half is built and never exercised —
+no run has yet shown a recorded lesson changing a later decision, because a
+fetch-shaped task doesn't create the opportunity. Recorded as unproven rather
+than counted as delivered.
+
+**"Observability will surface at least one bug the reviews and playtests
+didn't" — confirmed, and it understated the result by four.** It found cost
+estimation implemented and never called; reasoning logging correct on both ends
+and never once firing across 2,395 events; truncation recorded as successful
+completion; and context accounting that would have silently broken compaction
+the day caching turned on.
+
+### What the four bugs had in common
+
+They were not four incidents, they were one category: **code that is present,
+correct, connected — and silently wrong or silently doing nothing.** None
+raised an error. None failed a test. None would surface in a diff review. They
+were found only by running an instrument over real data or tracing one value
+end to end.
+
+This is the sharpest thing week 2 taught, and it generalizes past this project:
+on a system with no instrumentation, "it doesn't crash" is the only signal you
+have, and it is a much weaker signal than it feels like. Week 1's runs looked
+successful because nothing was measuring them. They *were* succeeding — while
+being cut off five times out of six.
+
+### Measure before optimizing, twice validated
+
+The plan asserted this and then nearly failed to follow it. Having found that
+the harness never sends thinking settings — so the model runs at its most
+thorough default — the obvious conclusion was that tuning them was a major cost
+lever. The data said thinking is 6% of spend and tuning it would have saved
+cents. **A lever that is obviously real is not automatically a lever that
+matters**, and only measurement separates the two. The same discipline is what
+turned up the 82% figure.
+
+### Test design fails as readily as code
+
+The bakery proof failed twice before it passed, and both failures were in the
+test, not the system. The character never left the Bakery between runs, so
+navigation was never exercised; and the check counted memory *tool calls* when
+the system delivers memory by automatic injection, so it reported False while
+the agent was visibly using memory. An acceptance test can be strict, be
+well-intentioned, and still measure the wrong thing — and a strict test that
+measures the wrong thing is worse than a loose one, because its failures look
+authoritative.
+
+### The cost of retiring the parity check is still outstanding
+
+Week 1's byte-for-byte Ruby/Python diff caught a real bug on nearly every step.
+Retiring it was correct — week 2's features have no original to port from — but
+the stated replacement was independent code review, **and that did not run
+until the very end of the week**. 68 offline tests are real but not independent:
+they were written by the same author, against the same understanding, at the
+same time as the code. On this project's track record that is not a comfortable
+place to submit from. The review commissioned at the end of the week is the
+mitigation, not a formality.
+
+### Answers to the week's open questions
+
+- **Structured room graph or freeform text?** Neither, exactly: store observed
+  *edges* and treat a route as a query over them. Composition across two
+  separately-walked journeys worked on the first attempt, and no migration will
+  be needed to add shortest-path later because the graph is already latent in
+  the data.
+- **What does "per task" mean for token accounting?** Per-turn is the useful
+  unit and is what the reporter defaults to; cumulative-per-run is trivially
+  available. Per-goal still needs the memory pillar's goal field to key on and
+  was not built.
+- **Is per-character memory keying sufficient insurance for multi-character?**
+  Unknown. The keying is in place and cost nothing, but no run has driven two
+  characters, so the insurance is untested.
 
 ## Key Takeaway
-<!-- Written at the end of the week. -->
+
+Week 2 set out to add three capabilities — observability, memory, and token
+optimization — and all three landed and were verified against the live game:
+turns now complete 100% of the time against week 1's 18%, caching serves 90% of
+input tokens, and the bakery run proved the agent follows a route it recorded
+rather than one it guessed.
+
+But the thing worth carrying forward is what building the instrument *first*
+revealed. Week 1's runs looked successful and were being cut off five times out
+of six; cost estimation had never been called; reasoning logging had never
+fired once across 2,395 events; truncation was being recorded as success. None
+of it crashed, so none of it was visible. **The hardest bugs on this project
+have not been the ones that fail loudly — they have been working, wired,
+plausible code that quietly does nothing or reports the wrong number, and the
+only reliable way to find them has been to measure real behavior rather than
+read the code.** That is also why the biggest self-inflicted risk this week was
+process rather than code: retiring week 1's parity check without immediately
+replacing it with independent review meant running for a week on tests I wrote
+against my own assumptions, which is precisely the blind spot that category of
+bug lives in.
