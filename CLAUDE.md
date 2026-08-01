@@ -26,12 +26,25 @@ week1_baseline/     -- "baseline" phase: hand-rolled agent loop, NO SDK
   ruby/00_config, ruby/01_struct_skeleton, ruby/02_the_registry, ...   -- source of truth, one dir per step
   python/00_config, python/01_struct_skeleton, (02_the_registry next)  -- literal port, runs alongside Ruby
   bin/00_config, bin/00_config_python, ...         -- launchers, one Ruby + one Python per step
-week2_capable/       -- not started yet (empty)
+week2_observability/  -- "observability" phase: lifecycle hooks + the three week2
+                         capabilities (observability, memory, token optimization).
+                         ONE evolving Python project, not a numbered ladder --
+                         forked from week1_baseline/python/12_context, and the
+                         Ruby<->Python mirror is RETIRED here. Renamed from
+                         week2_capable 2026-08-01.
+  python/boukensha/       -- the harness; hooks.py, memory.py, memory_hooks.py,
+                             mud_parse.py and report.py are the week2 additions
+  python/tests/            -- 86 offline tests, no runner dep (bin/test)
+  bin/                      -- example, smoke, bakery, report, test
+week3_capable/         -- "capable" phase: not started yet (empty)
 docs/
   journal/            -- weekly retros: Goal/Uncertainty/Hypothesis/Observations/Conclusions
   plans/python_port/    -- one plan file per week1_baseline step being ported
+  plans/week2/           -- week2's per-pillar execution plans + settled decisions
   explore_architectures.md  -- freeform week0 observations
-.boukensha/            -- shared runtime config for week1_baseline (gitignored except .keep)
+.boukensha/            -- shared runtime config (gitignored EXCEPT .keep,
+                          sessions/*.jsonl and memory/** -- those are committed
+                          deliberately for instructor evaluation)
 ```
 
 ## The MUD

@@ -14,7 +14,7 @@ pillar, plus the lifecycle-hook foundation they all attach to.
 
 ## Structural decisions (confirmed 2026-07-27)
 
-- **Code home**: `week2_capable/` as *one evolving project*, seeded from
+- **Code home**: `week2_observability/` as *one evolving project*, seeded from
   `week1_baseline/python/12_context`. Week 1 stays frozen as a submitted
   artifact. Week 2 is feature work, not a teaching ladder, so the numbered
   per-step directories don't fit.

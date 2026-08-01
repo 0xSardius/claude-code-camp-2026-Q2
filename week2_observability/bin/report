@@ -16,6 +16,6 @@ for a in "$@"; do
   esac
 done
 
-cd "$root/week2_capable/python"
+cd "$root/week2_observability/python"
 export BOUKENSHA_DIR="${BOUKENSHA_DIR:-$root/.boukensha}"
 exec uv run python -m boukensha.report ${args+"${args[@]}"}

@@ -12,7 +12,7 @@ from pathlib import Path
 import boukensha
 
 # 3 hops to the repo root, NOT the 4 that week1_baseline's steps used:
-# week2_capable/python/examples/ is one level shallower than
+# week2_observability/python/examples/ is one level shallower than
 # week1_baseline/python/<step>/examples/ was. Same class of bug the root
 # CLAUDE.md warns about on every new step -- it just happens to point the
 # other way here, so copying the old line forward would overshoot past the

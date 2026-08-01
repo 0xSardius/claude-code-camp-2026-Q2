@@ -77,7 +77,7 @@ chunks of text going in (input) and coming out (output).
 
 Three decisions were made up front rather than drifted into.
 
-**Week 2 gets its own codebase.** `week2_capable/` is a copy of week 1's final
+**Week 2 gets its own codebase.** `week2_observability/` is a copy of week 1's final
 step, evolved from there. Week 1 stays frozen as a submitted artifact.
 
 **The Ruby/Python mirror is retired.** All through week 1, every feature was
@@ -109,7 +109,7 @@ needed no renaming.
 
 ### Scaffolding, and a gotcha that inverted
 
-Copying week 1's final step into `week2_capable/` surfaced this project's
+Copying week 1's final step into `week2_observability/` surfaced this project's
 single most-repeated bug immediately — and pointing the *opposite* way.
 
 The example script computes the repo root by walking up a fixed number of

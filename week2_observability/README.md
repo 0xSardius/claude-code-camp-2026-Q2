@@ -1,4 +1,4 @@
-# week2_capable
+# week2_observability
 
 Week 2 of Claude Code Camp: teaching the agent harness to play tbaMUD
 *autonomously* — an observability layer, basic memory, and token-usage
@@ -44,7 +44,7 @@ reasoning behind the code's shape. History, not an obligation to mirror.
 ## Running
 
 ```bash
-week2_capable/bin/example
+week2_observability/bin/example
 ```
 
 Resolves config from the repo-root `.boukensha/` (settings, prompts, session

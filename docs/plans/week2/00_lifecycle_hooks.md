@@ -7,7 +7,7 @@ optimization.
 ## Where the seams are in the current code
 
 All line references are to `week1_baseline/python/12_context/boukensha/agent.py`
-as seeded into `week2_capable/python/boukensha/agent.py`.
+as seeded into `week2_observability/python/boukensha/agent.py`.
 
 | Hook | Insertion point |
 |---|---|

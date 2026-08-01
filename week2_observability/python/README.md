@@ -1,6 +1,6 @@
 # Boukensha — week 2 (Python)
 
-The agent harness for [`week2_capable`](../README.md). Forked from
+The agent harness for [`week2_observability`](../README.md). Forked from
 [`week1_baseline/python/12_context`](../../week1_baseline/python/12_context)
 on 2026-07-27; see the parent README for what the fork changed and why the
 Ruby mirror is retired.
