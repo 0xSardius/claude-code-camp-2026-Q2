@@ -12,8 +12,11 @@ from .. import mud_primitives as p
 from ..mud_session import Session, SessionError
 
 
-def register(registry, *, host="localhost", port=4000, name, password):
-    session = Session(host=host, port=port)
+def register(registry, *, host="localhost", port=4000, name, password, session=None):
+    # `session` is an injection point for the offline stand-in (tests/fake_mud.py).
+    # Everything below is unchanged whether it talks to a socket or to replayed
+    # fixtures, which is the point -- the tools under test are the real ones.
+    session = session if session is not None else Session(host=host, port=port)
 
     # Send a primitive command and return the MUD's response text. We
     # drain any stale buffered bytes (leftover login output, async ticks,

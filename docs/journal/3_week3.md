@@ -19,6 +19,7 @@ Build an agent architecture that can perceive, understand, decide, act, remember
 - Note: my initial observations from preweek video are located in the plans/week3/capability.md file
 - I chose to initially fix areas with brittle stuff from last week first (deterministic pathing, explicit STOP commands)
 - I also chose to harden 3 critical subsystems first (nav, combat, recovery) so I don't go crazy out of scope and bogged down
+- getting some ridiculous jargon from claude that makes it hard to understand what it is actually doing, this has been a challenge in this project. Had to make a rule to stop all the slopus witticisms... it was one too "corpus" and "load-bearing spine" too many.
 
 ## Technical Conclusions
 
