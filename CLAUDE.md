@@ -294,6 +294,81 @@ reasoning:
   look anywhere else this project waits on a short, generic literal
   rather than a more specific pattern.
 
+## week2_observability: what it does
+
+**Frozen — submitted artifact. Don't edit it; week3 is the working copy.**
+Code at `week2_observability/python`. Plans in `docs/plans/week2/`.
+
+Week 2 added three things to the week1 agent loop, plus the mechanism they all
+attach to.
+
+**Lifecycle hooks** (`hooks.py`) are that mechanism. Five points in the loop
+where behavior can attach: before a turn, before each model request, before a
+batch of tool calls, after each tool returns, after a turn. Everything else
+below plugs in here rather than being edited into `agent.py` directly. The
+reason it matters: with hooks, walking into a room records the room whether or
+not the model remembered to ask. Without them, self-maintenance is something
+the model has to choose to do, and it forgets exactly during the long messy
+turns where it matters most.
+
+**Memory** (`memory.py`, `memory_hooks.py`, `mud_parse.py`). A per-character
+store on disk under `.boukensha/memory/<name>/`: character state, the map,
+facts and lessons the agent writes about itself, plus a human-readable journal.
+The map records edges it actually walked — `(from_room, direction, to_room)` —
+and routes are a shortest-path search over those. Nothing is inferred; reverse
+directions are only known once walked, because CircleMUD has one-way exits.
+"I don't know the way" is a real answer that means go explore.
+
+**Cost control.** Prompt caching is on by default and runs at 90%+ hit rate on
+real sessions. Turn spend and cost per response are recorded in the session log.
+
+**A session reporter** (`report.py`, run via `bin/report`). Reads the JSONL
+logs and tells you spend, cache hit rate, how turns ended, tool counts, and
+whether anything truncated or stalled.
+
+Things a fresh session should know:
+
+- `bin/test` runs everything offline — no MUD, no API key, no cost.
+- The price table in `backends/anthropic.py` carries Sonnet 5's **introductory**
+  rate. It reverts 2026-09-01; after that every cost figure reads ~33% low
+  until the table is updated.
+- Stall detection was planned and never built. An agent that gets stuck still
+  has no way to notice.
+
+## week3_capable: building a capable loop
+
+**The active tree.** Code at `week3_capable/python`, forked from week2 on
+2026-08-02. Plans in `docs/plans/week3/`; the driving notes are
+`docs/plans/week3/capability.md`.
+
+The goal: an agent that can perceive, understand, decide, act, remember, and
+recover — turned loose to grind experience with thief skills, level and train,
+come back to town to buy gear, and take a task from a human. Beating the
+Minotaur is a bonus, not the bar; the bar is a system that could.
+
+The design rule the whole week answers to (`00_judgment_boundary.md`): **routine
+work runs mechanically off memory; judgment runs on the model; and judgment is
+never faked with guesswork.** A path-following algorithm that ignores a
+"lava pit" label is not capable. The same algorithm over a map the agent built
+by reasoning about what it saw is capable — the judgment happened once, when
+the map was made, and gets reused for free.
+
+Done so far:
+
+- **Every piece of real game text we ever captured is saved** at
+  `python/tests/fixtures/corpus.jsonl` — 437 distinct outputs pulled from the
+  session logs. **Test against these, not against examples you type yourself.**
+  Week 2's parser broke precisely because its tests used made-up samples that
+  matched an assumption about the format rather than what the server sends.
+  Rebuild with `uv run python tests/fixtures/extract.py`.
+- **Room names are read from the game's own color coding**, not guessed. The
+  MUD prints room titles in a different color than everything else; the old
+  code stripped that off and then guessed from line length and punctuation.
+  Reading the color removed four kinds of guesswork and handles a case the old
+  code got wrong (narration appearing before a room with no period on the end).
+  If the markup is ever missing the parser declines rather than guessing — that
+  shows up as a gap in the logs instead of a silently wrong room name.
+
 ## week0_explore: architecture comparison findings
 
 Full detail in `docs/journal/0_preweek.md` and `docs/explore_architectures.md`.
