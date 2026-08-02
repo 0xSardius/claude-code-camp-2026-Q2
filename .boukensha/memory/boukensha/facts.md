@@ -1,3 +1,4 @@
 - The Bakery in Midgaard is located north of Main Street, which is west of Market Square (which is south of Temple Square, south of Temple of Midgaard). Route from Temple of Midgaard: south, south, west, north.
 - The Bakery in Midgaard sells: a danish pastry (7 coins, unlimited), a bread (14 coins, unlimited), and a waybread (71 coins, unlimited).
 - Confirmed again: The Bakery in Midgaard (north of Main Street, which is west of Market Square) sells: a danish pastry (7 coins, unlimited), a bread (14 coins, unlimited), a waybread (71 coins, unlimited).
+- The Eastern End Of Poor Alley (west of Common Square, east of Poor Alley) sometimes has an 'odif yltsaeb' mob - a joke/mirror version of the beastly fido (name reversed), full HP, considered 'perfect match' at level 1. Poor Alley itself (further west) has a harmless beggar.

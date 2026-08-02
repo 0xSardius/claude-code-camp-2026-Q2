@@ -19,9 +19,52 @@
       "main street#9081dc",
       "north",
       "the bakery#7e3fb5"
+    ],
+    [
+      "the bakery#7e3fb5",
+      "south",
+      "main street#9081dc"
+    ],
+    [
+      "main street#9081dc",
+      "east",
+      "market square#9081dc"
+    ],
+    [
+      "market square#9081dc",
+      "south",
+      "the common square#9081dc"
+    ],
+    [
+      "the common square#9081dc",
+      "west",
+      "the eastern end of poor alley#0c54ab"
+    ],
+    [
+      "poor alley#94ced5",
+      "east",
+      "the eastern end of poor alley#0c54ab"
+    ],
+    [
+      "grubby inn#309944",
+      "north",
+      "the eastern end of poor alley#0c54ab"
+    ],
+    [
+      "the eastern end of poor alley#0c54ab",
+      "south",
+      "grubby inn#309944"
     ]
   ],
   "rooms": {
+    "grubby inn#309944": {
+      "description": "You are inside the old Grubby Inn.  This place has not been cleaned for several decades; vile smells make you dizzy.",
+      "exits": [
+        "north"
+      ],
+      "first_seen": "2026-08-02",
+      "name": "Grubby Inn"
+    },
     "main street#9081dc": {
       "description": "You are on the main street passing through the City of Midgaard.  South of here is the entrance to the Armory, and the bakery is to the north.  East of here is the market square.",
       "exits": [
@@ -44,6 +87,15 @@
       "first_seen": "2026-07-29",
       "name": "Market Square"
     },
+    "poor alley#94ced5": {
+      "description": "You are on Poor Alley, which continues further east.  You see the city wall to the west.",
+      "exits": [
+        "east",
+        "west"
+      ],
+      "first_seen": "2026-08-02",
+      "name": "Poor Alley"
+    },
     "the bakery#7e3fb5": {
       "description": "You are standing inside the small bakery.  A sweet scent of danish and fine bread fills the room.  The bread and Danish are arranged in fine order on the shelves, and seem to be of the finest quality. A small sign is on the counter.",
       "exits": [
@@ -51,6 +103,27 @@
       ],
       "first_seen": "2026-07-29",
       "name": "The Bakery"
+    },
+    "the common square#9081dc": {
+      "description": "The common square, people pass you, talking to each other.  To the west is the poor alley and to the east is the dark alley.  To the north, this square is connected to the market square.  From the south you notice a nasty smell.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-02",
+      "name": "The Common Square"
+    },
+    "the eastern end of poor alley#0c54ab": {
+      "description": "You are at the poor alley.  South of here is the Grubby Inn and to the east you see common square.  The alley continues further west.",
+      "exits": [
+        "east",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-02",
+      "name": "The Eastern End Of Poor Alley"
     },
     "the temple of midgaard#06357f": {
       "description": "You are in the southern end of the temple hall in the Temple of Midgaard. The temple has been constructed from giant marble blocks, eternal in appearance, and most of the walls are covered by ancient wall paintings picturing Gods, giants and peasants. Large steps lead down through the grand temple gate, descending the huge mound upon which the temple is built and ends on the temple square below. To the west, you see the Reading Room.  The donation room is in a small alcove to your east.",

@@ -214,6 +214,17 @@ class Driver:
 
         Health comes off the status prompt that rides on every combat reply,
         so breaking off is checked every round without a single extra call.
+
+        KNOWN LIMIT, observed live: experience proves SOMETHING died, not that
+        it was `target`. CircleMUD resolves combat rounds on its own tick, so a
+        fight started earlier can finish while this call is swinging at
+        something else, and the gain lands here. The second live run did
+        exactly that -- it reported a kill for a target that did not exist,
+        while an earlier fido fight finished in the background. The signal is
+        still the right one (it is structural, and it never hangs), so the
+        wording is what changed: this reports "a kill happened while fighting
+        X", not "X died". Attributing it properly would need a real combat-
+        state parser, which is a bigger job than this week has room for.
         """
         before = self._ensure_state()
         rounds = 0
@@ -237,8 +248,8 @@ class Driver:
             if (after.exp is not None and before.exp is not None
                     and after.exp > before.exp):
                 gained = after.exp - before.exp
-                return (f"KILLED {target} in {rounds} rounds. +{gained} experience "
-                        f"(now {after.exp}), health {after.health:.0%}. "
+                return (f"KILL after {rounds} rounds fighting {target}. +{gained} "
+                        f"experience (now {after.exp}), health {after.health:.0%}. "
                         f"Loot the corpse if it dropped anything.")
 
         a = self.assess()

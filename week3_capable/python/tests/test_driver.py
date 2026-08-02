@@ -189,7 +189,7 @@ def it_stops_fighting_when_experience_goes_up():
 
     driver._do = counting
     out = driver.engage("fido")
-    assert "KILLED" in out and "+75" in out, out
+    assert "KILL" in out and "+75" in out, out
     assert rounds.count("attack") == 2, rounds
 
 

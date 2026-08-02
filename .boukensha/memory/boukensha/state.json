@@ -1,6 +1,15 @@
 {
+  "exp": 122,
+  "exp_to_level": 1878,
+  "gold": 10,
+  "hp": "23/25",
   "hp_now": 25,
-  "moves_now": 77,
-  "position": "the bakery#7e3fb5",
-  "updated_at": "2026-07-29T19:41:49-04:00"
+  "level": 1,
+  "mana": "100/100",
+  "moves": "84/85",
+  "moves_now": 82,
+  "position": "grubby inn#309944",
+  "position_state": "standing",
+  "title": "Boukensha the Swordpupil",
+  "updated_at": "2026-08-02T16:23:20-04:00"
 }
