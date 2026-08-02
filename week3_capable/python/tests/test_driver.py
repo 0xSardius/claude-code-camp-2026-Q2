@@ -18,6 +18,8 @@ os.environ.setdefault("BOUKENSHA_DIR", str(Path(__file__).resolve().parent.paren
 from boukensha.context import Context  # noqa: E402
 from boukensha.driver import Driver, Policy  # noqa: E402
 from boukensha.memory import Memory  # noqa: E402
+from boukensha.hooks import Hooks  # noqa: E402
+from boukensha.memory_hooks import MemoryHooks  # noqa: E402
 from boukensha.registry import Registry  # noqa: E402
 from boukensha.tools import mud as mud_tools  # noqa: E402
 from tests.fake_mud import FakeSession  # noqa: E402
@@ -46,7 +48,14 @@ def build(*, exp=100, exp_to_level=500, hp="30/30", moves="85/85", level=3):
         turns.append(task)
         return "ok"
 
-    driver = Driver(goal="reach level 5", memory=memory, registry=registry, run_turn=run_turn)
+    # Hooks wired exactly as the Harness wires them: the driver's own tool
+    # calls have to reach memory the same way the Agent's do.
+    hooks = Hooks()
+    MemoryHooks(memory, registry=registry).install(hooks)
+    memory.update_state(level=level, exp=exp, exp_to_level=exp_to_level, hp=hp, moves=moves)
+
+    driver = Driver(goal="reach level 5", memory=memory, registry=registry,
+                    run_turn=run_turn, hooks=hooks)
     return fake, memory, driver, turns
 
 
@@ -112,6 +121,33 @@ def a_available_level_sends_it_to_train():
     cycle = driver.step()
     assert cycle.action == "trained" and cycle.used_model is True, cycle
     assert "practise" in turns[0].lower() and "thief" in turns[0].lower()
+
+
+# ---- the driver's own tool calls have to reach memory ----------------------
+
+@test
+def mechanical_tool_calls_update_memory():
+    """The driver dispatches at the registry directly, which does NOT fire the
+    lifecycle hooks by itself. The first version relied on that and the effect
+    was invisible: `check` while resting never updated health, so the driver
+    could not tell it had recovered and sat there until max_rest_cycles bailed
+    it out. Found on the first dry run, not by any test that existed then."""
+    _, memory, driver, _ = build(hp="5/30")
+    memory.update_state(hp_now=-1)              # sentinel: nothing has read a reply yet
+    driver._do("check", {"kind": "score"})
+    assert memory.state.get("hp_now") != -1, "the driver's dispatch never reached memory"
+
+
+@test
+def it_learns_its_own_vitals_before_deciding():
+    """A cold start has nothing in memory, and every threshold compared against
+    None means the driver hunts straight past an empty state instead of
+    resting. One mechanical `check` fixes it -- and stays mechanical."""
+    _, memory, driver, turns = build()
+    memory.update_state(hp=None, moves=None, level=None)
+    a = driver._ensure_state()
+    assert a.health is not None and a.movement is not None, a
+    assert turns == [], "bootstrapping vitals called the model"
 
 
 # ---- the recover half ------------------------------------------------------

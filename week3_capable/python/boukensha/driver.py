@@ -30,6 +30,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from .hooks import Hook, HookPayload
+
 
 def _ratio(value):
     """'23/57' -> 0.40. Returns None when the shape isn't a fraction."""
@@ -99,13 +101,17 @@ class RunResult:
 
 
 class Driver:
-    def __init__(self, *, goal, memory, registry, run_turn, policy=None, logger=None):
+    def __init__(self, *, goal, memory, registry, run_turn, policy=None, logger=None,
+                 hooks=None):
         self.goal = goal
         self.memory = memory
         self.registry = registry
         self.run_turn = run_turn          # callable(task_text) -> str
         self.policy = policy or Policy()
         self.logger = logger
+        # The same Hooks the Agent fires. Without it the driver's own tool
+        # calls never reach memory -- see _do.
+        self.hooks = hooks
         self._resting = 0
         self._no_progress = 0
 
@@ -146,16 +152,59 @@ class Driver:
         return ok_health and ok_moves
 
     def _do(self, tool, args=None):
-        """Run a tool directly. No model call -- this is the mechanical half."""
+        """Run a tool directly. No model call -- this is the mechanical half.
+
+        Fires after_tool exactly as the Agent does. This is not optional
+        bookkeeping: MemoryHooks reads vitals off the status prompt in that
+        handler, so a dispatch that skips it is invisible to memory. The first
+        version skipped it, and the effect was that `check` while resting never
+        updated health -- so the driver could not tell it had recovered and sat
+        down until max_rest_cycles bailed it out. Found on the first dry run.
+        """
+        ok, error, result = True, None, None
         try:
-            return self.registry.dispatch(tool, args or {})
+            result = self.registry.dispatch(tool, args or {})
         except Exception as e:  # noqa: BLE001 -- a dead connection must not end the run
-            return f"error: {type(e).__name__}: {e}"
+            ok, error = False, e
+            result = f"error: {type(e).__name__}: {e}"
+        if self.hooks is not None:
+            self.hooks.fire(
+                Hook.AFTER_TOOL,
+                HookPayload(
+                    Hook.AFTER_TOOL,
+                    context=None,
+                    registry=self.registry,
+                    logger=self.logger,
+                    name=tool,
+                    args=args or {},
+                    result=result,
+                    ok=ok,
+                    error=error,
+                ),
+            )
+        return result
+
+    def _ensure_state(self):
+        """Learn our own vitals if we do not know them yet.
+
+        Track, don't poll: MemoryHooks keeps health and movement current from
+        the status prompt that rides on nearly every reply, so this normally
+        costs nothing. But on the very first cycle nothing has replied yet, and
+        a driver that does not know its health cannot decide to rest -- the
+        first dry run hunted straight past an empty state because every
+        threshold compared against None. One mechanical `check` fixes that; it
+        is not repeated while the tracked values hold.
+        """
+        a = self.assess()
+        if a.health is not None and a.movement is not None and a.level is not None:
+            return a
+        self._do("check", {"kind": "score"})
+        return self.assess()
 
     # ---- one cycle -------------------------------------------------------
 
     def step(self):
-        a = self.assess()
+        a = self._ensure_state()
 
         # 1. Recovery. Mechanical: the game states the condition and there is
         #    one correct response. Reasoning about whether to sit down when
@@ -232,7 +281,10 @@ class Driver:
         nothing. Mechanical to detect; what to do about it is the operator's
         call, so we stop and say so rather than guessing.
         """
-        result = RunResult(starting_exp=self.assess().exp)
+        # _ensure_state, not assess: on a cold start memory has no experience
+        # figure yet, and a starting value of None makes experience_gained
+        # unreportable for the whole run.
+        result = RunResult(starting_exp=self._ensure_state().exp)
         for _ in range(max_cycles):
             cycle = self.step()
             result.cycles.append(cycle)

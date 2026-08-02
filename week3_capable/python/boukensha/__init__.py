@@ -60,6 +60,7 @@ from .errors import ApiError, LoopError, TurnInterrupted, UnknownToolError, Unsu
 from .logger import Logger
 from .memory import Memory
 from . import memory_hooks as _memory_hooks
+from .harness import Harness
 from .hooks import Hook, HookPayload, Hooks
 from .message import Message
 from .prompt_builder import PromptBuilder
@@ -88,6 +89,7 @@ __all__ = [
     "Client",
     "Agent",
     "Driver",
+    "Harness",
     "Policy",
     "Hook",
     "Hooks",
@@ -150,136 +152,32 @@ def run(
     hooks=None,
     memory=None,
 ):
-    # working_dir defaults to the current directory (Ruby: working_dir:
-    # Dir.pwd), not None -- os.getcwd() evaluated at CALL time via the
-    # default below matches Ruby's Dir.pwd-evaluated-per-call semantics
-    # (Python function defaults are evaluated once at def-time, so a bare
-    # `working_dir=os.getcwd()` in the signature would be wrong -- same
-    # class of gotcha as 06_the_logger's Logger.new default; resolved the
-    # same way, with None-as-sentinel plus an explicit call inside the body).
-    if working_dir is None:
-        working_dir = os.getcwd()
+    """One task, one turn, then tear everything down.
 
-    cfg = config()  # loads .env; populates os.environ
-    if system is None:
-        system = cfg.system_prompt
-    if model is None:
-        model = cfg.model
-    if context_window is None:
-        context_window = models.context_window(model)
-    if backend is None:
-        backend = cfg.provider_type
-    if api_key is None:
-        api_key = {
-            "anthropic": os.environ.get("ANTHROPIC_API_KEY"),
-            "openai": os.environ.get("OPENAI_API_KEY"),
-            "gemini": os.environ.get("GEMINI_API_KEY"),
-            "ollama_cloud": os.environ.get("OLLAMA_API_KEY"),
-        }.get(backend)
+    The assembly used to live here, duplicated again in repl(). Week 3 needed a
+    third caller -- an unattended loop that keeps ONE conversation alive across
+    many turns (see harness.py on why looping around run() does not work) -- so
+    the setup moved into Harness.build and this is now a thin wrapper over it.
+    Behaviour is unchanged except that the turn is now logged as a turn, which
+    the reporter already handled via its turn_end fallback.
 
-    ctx = Context(
-        system=system,
-        context_window=context_window,
-        working_dir=working_dir,
-        compaction_threshold=cfg.agent_compaction_threshold(),
+    repl() is deliberately left duplicating: it threads an interrupt event and
+    a Tui through the same wiring, and untangling that buys nothing this week.
+    """
+    h = Harness.build(
+        system=system, model=model, backend=backend, api_key=api_key,
+        ollama_host=ollama_host, log=log, context_window=context_window,
+        max_output_tokens=max_output_tokens, working_dir=working_dir,
+        allowed_commands=allowed_commands, shell_timeout=shell_timeout,
+        mud=mud, setup=setup, hooks=hooks, memory=memory,
     )
-    registry = Registry(ctx)
-
-    # Ruby: `if working_dir` -- a deliberate truthy check (working_dir:
-    # false is the explicit opt-out sentinel; see context.py's dedicated
-    # note on why a bare Python `if working_dir:` is correct here, not a
-    # bug to fix with `is not None`).
-    if working_dir:
-        _file_system_tools.register(registry, working_dir=working_dir)
-        _shell_tools.register(registry, working_dir=working_dir, timeout=shell_timeout, allowed_commands=allowed_commands)
-
-    # mud=None means "use config if host is set"; mud=False means "skip
-    # entirely" -- Ruby: `mud == false ? nil : (mud || mud_opts_from_config(cfg))`.
-    # `is not None`, not `or`, for the same reason as every other Ruby-
-    # truthy-vs-Python-falsy translation in this codebase (an explicit
-    # mud={} is truthy in Ruby but falsy in Python).
-    resolved_mud = None if mud is False else (mud if mud is not None else _mud_opts_from_config(cfg))
-    if resolved_mud:
-        _mud_tools.register(registry, **resolved_mud)
-
-    # Per-character memory (week2). Enabled automatically whenever a MUD
-    # character is configured -- an agent that plays but forgets is the gap
-    # week1's live playtest ran into. memory=False opts out; a string names a
-    # different character; a Memory instance is used as-is.
-    mem = None
-    if memory is not False:
-        if isinstance(memory, Memory):
-            mem = memory
-        else:
-            char = memory if isinstance(memory, str) else (resolved_mud or {}).get("name")
-            if char:
-                mem = Memory(char)
-    if mem is not None:
-        _memory_tools.register(registry, memory=mem)
-        if hooks is None:
-            hooks = Hooks()
-        _memory_hooks.install(hooks, mem, registry=registry)
-
-    if setup is not None:
-        setup(RunDSL(registry))
-
-    if backend == "anthropic":
-        be = Anthropic(api_key=api_key, model=model, cache=cfg.agent_prompt_caching())
-    elif backend == "openai":
-        be = OpenAI(api_key=api_key, model=model)
-    elif backend == "gemini":
-        be = Gemini(api_key=api_key, model=model)
-    elif backend == "ollama":
-        be = Ollama(host=ollama_host, model=model)
-    elif backend == "ollama_cloud":
-        be = OllamaCloud(api_key=api_key, model=model)
-    else:
-        raise ValueError(
-            f"Unknown backend {backend!r}. Use 'anthropic', 'openai', 'gemini', 'ollama', or 'ollama_cloud'."
-        )
-
-    builder = PromptBuilder(ctx, be)
-    client = Client(builder)
-    effective_max_iterations = cfg.agent_max_iterations()
-    effective_max_turn_tokens = cfg.agent_max_turn_tokens()
-    effective_max_output_tokens = (
-        max_output_tokens if max_output_tokens is not None else cfg.agent_max_output_tokens()
-    )
-
-    # Ruby's `ensure`/`logger&.close` wraps the whole method; this only
-    # wraps from Logger construction onward -- behaviorally identical,
-    # since nothing before this point ever has a logger open to clean up.
-    # logger=None first so the finally clause never hits an unbound name.
-    logger = None
     try:
-        logger = Logger(
-            log=log,
-            snapshot={
-                "max_iterations": effective_max_iterations,
-                "max_turn_tokens": effective_max_turn_tokens,
-                "max_output_tokens": effective_max_output_tokens,
-                "context_window": context_window,
-                "model": model,
-                "provider": backend,
-            },
-        )
-        agent = Agent(
-            context=ctx,
-            registry=registry,
-            builder=builder,
-            client=client,
-            logger=logger,
-            max_iterations=effective_max_iterations,
-            max_turn_tokens=effective_max_turn_tokens,
-            max_output_tokens=effective_max_output_tokens,
-            hooks=hooks,
-        )
-
-        ctx.add_message("user", task)
-        return agent.run()
+        # start_turn, not run_turn: a one-shot caller wants an ApiError to
+        # surface, not to be flattened into a return string the way an
+        # unattended loop needs.
+        return h.start_turn(task).run()
     finally:
-        if logger is not None:
-            logger.close()
+        h.close()
 
 
 def repl(
