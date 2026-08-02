@@ -113,6 +113,7 @@ def hunting_asks_the_model():
     assert len(turns) == 1
     task = turns[0].lower()
     assert "consider" in task and "backstab" in task and "flee" in task
+    assert "engage" in task
 
 
 @test
@@ -148,6 +149,90 @@ def it_learns_its_own_vitals_before_deciding():
     a = driver._ensure_state()
     assert a.health is not None and a.movement is not None, a
     assert turns == [], "bootstrapping vitals called the model"
+
+
+# ---- the mechanical fight --------------------------------------------------
+
+@test
+def a_whole_fight_costs_one_model_call():
+    """The finding that motivated engage(): the first live run spent 9
+    consecutive model calls sending `attack fido`. The model decides WHAT to
+    fight; the swinging is routine and must not cost a turn each."""
+    fake, memory, driver, turns = build()
+    driver.policy = Policy(max_fight_rounds=4)
+    memory.update_state(exp=100)
+    driver.engage("fido")
+    assert turns == [], "the fight called the model"
+    assert sum(1 for c in fake.sent if c.startswith("kill")) >= 1, fake.sent
+
+
+@test
+def it_stops_fighting_when_experience_goes_up():
+    """How it knows the target died -- a structural signal, not the server's
+    death message. A phrase match would be one wording change from an infinite
+    loop; this codebase already chose structure over phrasing once (movement
+    cost, to tell walking from being teleported)."""
+    _, memory, driver, _ = build(exp=100)
+    memory.update_state(exp=100)
+
+    original = driver._do
+    rounds = []
+
+    def counting(tool, args=None):
+        rounds.append(tool)
+        out = original(tool, args)
+        # AFTER the real dispatch: `check` fires the memory hooks, which parse
+        # the fake's captured score reply and would overwrite this.
+        if tool == "check" and rounds.count("attack") >= 2:
+            memory.update_state(exp=175)      # it died on round 2
+        return out
+
+    driver._do = counting
+    out = driver.engage("fido")
+    assert "KILLED" in out and "+75" in out, out
+    assert rounds.count("attack") == 2, rounds
+
+
+@test
+def it_breaks_off_before_dying():
+    """Fleeing at a threshold is policy -- an explicit, arguable number -- and
+    checking it every round is free, because health rides on the status prompt
+    of every combat reply."""
+    _, memory, driver, _ = build()
+    driver.policy = Policy(flee_below_health=0.5, max_fight_rounds=10)
+
+    original = driver._do
+
+    def wounded(tool, args=None):
+        out = original(tool, args)
+        if tool == "attack":
+            memory.update_state(hp_now=4)     # 4/30 -- well under the threshold
+        return out
+
+    driver._do = wounded
+    out = driver.engage("cityguard")
+    assert "BROKE OFF" in out, out
+
+
+@test
+def a_fight_that_will_not_end_gives_up():
+    """Otherwise an unkillable target is an infinite loop with no model call in
+    it to notice -- the worst kind, because nothing is watching."""
+    _, memory, driver, _ = build()
+    driver.policy = Policy(max_fight_rounds=3)
+    memory.update_state(exp=100)
+    out = driver.engage("statue")
+    assert "STILL FIGHTING" in out and "3 rounds" in out, out
+
+
+@test
+def the_model_is_told_to_engage_rather_than_to_swing():
+    _, _, driver, turns = build()
+    driver.step()
+    task = turns[0]
+    assert "engage" in task
+    assert "Do not call `attack` in a loop" in task
+    assert "DO NOT rest" in task, "the model will otherwise poll check while healing"
 
 
 # ---- the recover half ------------------------------------------------------

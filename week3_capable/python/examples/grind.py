@@ -87,7 +87,11 @@ def main():
     elif not os.environ.get("ANTHROPIC_API_KEY"):
         sys.exit("ANTHROPIC_API_KEY not set — run via ../bin/grind")
 
-    log = Path(os.environ["BOUKENSHA_DIR"]) / "sessions" / "grind.jsonl"
+    # Separate logs on purpose: a dry run used to overwrite the live one, and
+    # the first live run's raw data was lost to the next --dry-run before it
+    # could be compared against.
+    name = "grind-dry" if args.dry_run else f"grind-{char['name']}"
+    log = Path(os.environ["BOUKENSHA_DIR"]) / "sessions" / f"{name}.jsonl"
     log.unlink(missing_ok=True)
 
     cfg = boukensha.config()

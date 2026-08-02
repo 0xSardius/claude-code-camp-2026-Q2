@@ -243,9 +243,12 @@ class Harness:
         to decide from."""
         if self.memory is None:
             raise ValueError("driver() needs memory; build the harness with memory=<character>")
-        return Driver(goal=goal, memory=self.memory, registry=self.registry,
-                      run_turn=self.run_turn, policy=policy, logger=self.logger,
-                      hooks=self.hooks)
+        d = Driver(goal=goal, memory=self.memory, registry=self.registry,
+                   run_turn=self.run_turn, policy=policy, logger=self.logger,
+                   hooks=self.hooks)
+        # The driver's mechanical routines become tools the model can call, so
+        # a whole fight costs one model call instead of one per swing.
+        return d.install_tools()
 
     # ---- teardown --------------------------------------------------------
 

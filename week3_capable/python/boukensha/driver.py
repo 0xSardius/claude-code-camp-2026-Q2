@@ -56,6 +56,8 @@ class Policy:
     resume_above_movement: float = 0.60
     stall_cycles: int = 3                # cycles with no progress before we stop
     max_rest_cycles: int = 12            # give up resting rather than loop forever
+    flee_below_health: float = 0.30      # break off a fight at this much HP left
+    max_fight_rounds: int = 15           # a fight this long is not going our way
 
 
 @dataclass
@@ -184,6 +186,96 @@ class Driver:
             )
         return result
 
+    # ---- the mechanical fight -------------------------------------------
+
+    def engage(self, target, opener=None):
+        """Fight `target` to a conclusion. No model calls at all.
+
+        `opener` is an optional skill to lead with -- backstab, for a thief.
+        WHETHER to open with it is judgment and stays with the model: backstab
+        needs you hidden and the target unaware, and it is wasted otherwise. So
+        the model decides and passes it in; landing it and then grinding out
+        the remaining rounds is routine, and happens here.
+
+        THIS IS THE WEEK'S THESIS IN ONE METHOD. The first live run spent 9
+        consecutive model calls sending `attack fido` and 7 more sending
+        `check score` while waiting to heal -- roughly 16 of one turn's 25
+        iterations doing something with no decision in it. Swinging again at
+        the thing you already decided to fight is not judgment; picking what
+        to fight is. So the model picks, by calling this tool, and the swinging
+        happens here for free.
+
+        HOW IT KNOWS THE TARGET DIED: experience went up. Not by matching the
+        server's death message -- a phrase match would be one wording change
+        away from an infinite loop, and this codebase already chose a
+        structural signal over a phrase once before (movement cost, to tell
+        walking from being teleported by death; see memory_hooks). Experience
+        rising is the definition of something having died.
+
+        Health comes off the status prompt that rides on every combat reply,
+        so breaking off is checked every round without a single extra call.
+        """
+        before = self._ensure_state()
+        rounds = 0
+        if opener:
+            self._do("skill_strike", {"skill": opener, "target": target})
+        while rounds < self.policy.max_fight_rounds:
+            self._do("attack", {"style": "kill", "target": target})
+            rounds += 1
+
+            a = self.assess()
+            if a.health is not None and a.health < self.policy.flee_below_health:
+                self._do("flee", {})
+                return (f"BROKE OFF after {rounds} rounds against {target}: down to "
+                        f"{a.health:.0%} health, so I fled. Rest before trying again, "
+                        f"and consider whether {target} is too strong.")
+
+            # Mechanical, no model call. The status prompt gives health for
+            # free but not experience, so this is the one round trip per round.
+            self._do("check", {"kind": "score"})
+            after = self.assess()
+            if (after.exp is not None and before.exp is not None
+                    and after.exp > before.exp):
+                gained = after.exp - before.exp
+                return (f"KILLED {target} in {rounds} rounds. +{gained} experience "
+                        f"(now {after.exp}), health {after.health:.0%}. "
+                        f"Loot the corpse if it dropped anything.")
+
+        a = self.assess()
+        return (f"STILL FIGHTING {target} after {rounds} rounds and it is not dying. "
+                f"Health {'unknown' if a.health is None else f'{a.health:.0%}'}. "
+                f"Break off and pick a different target.")
+
+    def install_tools(self, registry=None):
+        """Expose the mechanical routines as tools the model can invoke.
+
+        Registering the fight as a TOOL rather than a driver phase is what
+        keeps the judgment boundary honest. The model still decides what to
+        attack and when -- it just cannot spend a model call per swing, because
+        the swinging is on the other side of a tool call.
+        """
+        reg = registry if registry is not None else self.registry
+        reg.tool(
+            "engage",
+            description=(
+                "Fight a target to a conclusion and report the outcome. Attacks "
+                "repeatedly, breaks off automatically if your health gets low, and "
+                "stops when the target dies. Use this INSTEAD of calling attack over "
+                "and over -- one call covers the whole fight. Use `consider` first to "
+                "judge whether the target is safe to fight."
+            ),
+            parameters={
+                "target": {"type": "string",
+                           "description": "The mob to fight, e.g. 'fido'"},
+                "opener": {"type": "string",
+                           "description": "Optional skill to lead with, e.g. 'backstab'. "
+                                          "Only worth it if you are hidden and the target "
+                                          "has not noticed you."},
+            },
+            block=self.engage,
+        )
+        return self
+
     def _ensure_state(self):
         """Learn our own vitals if we do not know them yet.
 
@@ -244,17 +336,38 @@ class Driver:
         return CycleResult("hunted", True, "progress" if progressed else "no progress", a)
 
     def _hunt_task(self, a):
+        """The turn we hand to the model.
+
+        Most of this is telling it what NOT to do, and that is deliberate. The
+        first live run showed the model filling its whole iteration budget with
+        work that has no decision in it -- swinging at a mob it had already
+        chosen, and polling `check score` while waiting to heal. Both now
+        happen mechanically, so the turn is spent on the parts that need a
+        reason: where to go, what is worth fighting, when something has gone
+        wrong.
+        """
+        where = f"You are in {a.room}. " if a.room else ""
         return (
             f"Goal: {self.goal}.\n\n"
-            "Find something safe to fight nearby and kill it for experience.\n"
-            "- Use `consider` before attacking anything, and skip it if the answer "
-            "suggests you would lose.\n"
-            "- You are a thief: prefer backstab from hiding where you can.\n"
-            "- Loot the corpse.\n"
-            "- Do not leave the zone you are in, and do not attack guards or "
-            "anything the memory notes say is dangerous.\n"
-            "- If you take heavy damage, flee. Staying alive matters more than "
-            "one kill."
+            f"{where}Find one thing worth fighting and kill it.\n\n"
+            "- `consider` your target first, and pick something else if the answer "
+            "suggests you would lose. Check your memory notes for mobs already known "
+            "to be dangerous.\n"
+            "- You are a thief. If you can hide first and the target has not noticed "
+            "you, pass opener='backstab' -- it is by far your best opening. If you are "
+            "already seen, or you have not practised the skill, skip it.\n"
+            "- Then call `engage` with that target. ONE call fights the whole thing "
+            "and reports what happened. Do not call `attack` in a loop -- `engage` "
+            "already does that, and it will flee for you if your health drops.\n"
+            "- Loot the corpse afterwards.\n"
+            "- Record anything surprising with `remember_learning`, especially a mob "
+            "that turned out to be far stronger than it looked, or a room where "
+            "something else joined the fight.\n\n"
+            "DO NOT rest, sleep, or wait for health to come back, and do not poll "
+            "`check` repeatedly to watch it regenerate. The loop around you handles "
+            "recovery between turns. When you have made a kill or decided this room "
+            "has nothing worth fighting, say so and end your turn.\n\n"
+            "Do not leave the zone you are in, and do not attack guards or players."
         )
 
     def _check_progress(self, before):
