@@ -13,9 +13,12 @@ Build an agent architecture that can perceive, understand, decide, act, remember
 
 ## Technical Hypothesis
 - Our existing memory structure will be able to be scaled to create loops for our different systems and reach our goal of hitting level 7 and finding the minotaur
+- That hardening 3 critical systems (naviagtion, combat, and recovery) will be enough to ship the MVP agentic loop, and we can scale up with lessons learned if necessary
 
 ## Technical Observations
 - Note: my initial observations from preweek video are located in the plans/week3/capability.md file
+- I chose to initially fix areas with brittle stuff from last week first (deterministic pathing, explicit STOP commands)
+- I also chose to harden 3 critical subsystems first (nav, combat, recovery) so I don't go crazy out of scope and bogged down
 
 ## Technical Conclusions
 
