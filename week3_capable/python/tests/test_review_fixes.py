@@ -32,8 +32,24 @@ from boukensha.prompt_builder import PromptBuilder  # noqa: E402
 from boukensha.registry import Registry  # noqa: E402
 from boukensha.report import SessionReport  # noqa: E402
 
-ROOM = "The Temple Of Midgaard\n   prose here.\n[ Exits: n e s ]\n25H 100M 85V > "
-MARKET = ROOM.replace("The Temple Of Midgaard", "The Market Square")
+# Sample room replies carrying the server's real markup. The colour codes are
+# not decoration: parse_room reads the title from the server's own title colour
+# rather than guessing which line looks like a title, so a sample without them
+# is not a room reply at all.
+#
+# An earlier version of this file omitted them -- hand-typed text that matched
+# my idea of the format rather than the server's, which is precisely the
+# mistake tests/fixtures/corpus.jsonl exists to prevent. It was caught by
+# swapping the guessing rule for the markup rule and watching this file fail.
+def room(name, exits="n e s"):
+    return (f"\x1b[0;33m{name}\x1b[0m\r\n"
+            "   prose here.\r\n"
+            f"\x1b[0;36m[ Exits: {exits} ]\x1b[0m\r\n"
+            "\r\n25H 100M 85V (news) (motd) > ")
+
+
+ROOM = room("The Temple Of Midgaard")
+MARKET = room("The Market Square")
 
 
 def store():
@@ -108,14 +124,21 @@ def two_unparseable_moves_in_one_batch_still_record_nothing():
 
 
 @test
-def speech_and_connect_lines_are_not_mistaken_for_rooms():
-    """parse_room took the first non-blank line above the exits block and only
-    then validated it, so anything printed just before a room -- a mob talking,
-    a gossip line, mud_connect's own banner -- became the room NAME, and a
-    phantom room and its edges were written permanently."""
-    for prefix in ("Puff says, 'What a lovely day this is.'\n",
-                   "Bob gossips, 'anyone selling a longsword'\n",
-                   "connected to localhost:4000\nWelcome back!\n"):
+def narration_before_a_room_never_becomes_the_room():
+    """parse_room used to take the first non-blank line above the exits block
+    and only then validate it, so anything printed just before a room -- a mob
+    talking, a gossip line, mud_connect's own banner -- became the room NAME,
+    and a phantom room plus its edges were written permanently.
+
+    Week 2 patched that with a growing list of stop words. Week 3 removed the
+    guessing entirely: the title is read from the server's own title colour,
+    so unmarked narration cannot be mistaken for a room no matter what it says.
+    The corpus proves this on the two real occurrences ("You are hungry.",
+    "The cityguard has arrived."); these are the synthetic hostile cases."""
+    for prefix in ("Puff says, 'What a lovely day this is.'\r\n",
+                   "Bob gossips, 'anyone selling a longsword'\r\n",
+                   "connected to localhost:4000\r\nWelcome back!\r\n",
+                   "A short unpunctuated line with no marker\r\n"):
         r = parse_room(prefix + ROOM)
         assert r and r["name"] == "The Temple Of Midgaard", (prefix, r)
 

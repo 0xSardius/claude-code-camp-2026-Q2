@@ -29,9 +29,25 @@ DIRECTION_WORDS = {
     "up": "up", "down": "down",
 }
 
-# A room title is short, has no sentence-ending punctuation, and is not the
-# status prompt. Anything else and we decline to guess.
-_MAX_TITLE_LEN = 60
+# The server marks room titles with its own colour code. We read that marker
+# instead of guessing which line looks like a title.
+#
+# The week 2 version guessed: first non-blank line, unless over 60 characters,
+# unless it ends in sentence punctuation, unless it holds two quote marks,
+# unless it starts with one of a list of phrases. Every bug found added another
+# guess -- which is the "brittle logic" failure the week 3 red-flag list names
+# (regex on content, stop words, number thresholds standing in for a judgment).
+#
+# Measured over the full fixture corpus: all 243 real room-bearing replies wrap
+# the title in this code, and the markup rule agrees with the old guessing rule
+# on every one of them -- including both cases where narration ("You are
+# hungry.", "The cityguard has arrived.") precedes the room.
+#
+# The same colour also marks mobs and players, but those are listed BELOW the
+# exits block, so position disambiguates. Both signals come from the server;
+# neither is an assumption about what room names look like.
+TITLE_MARKUP = re.compile(r"\x1b\[0;33m([^\x1b\r\n]*)")
+EXITS_MARKER = re.compile(r"(?:\x1b\[[0-9;]*m)?\[\s*Exits:", re.IGNORECASE)
 
 
 def strip_ansi(text):
@@ -63,81 +79,50 @@ def parse_exits(text):
 def parse_room(text):
     """Extract {name, exits, description} from a look/move reply.
 
-    Anchored on the `[ Exits: ... ]` line: without it we are not confident this
-    is a room description at all, and decline. Returns None rather than
-    guessing.
+    Two structural signals from the server, no guesses about content:
+
+      1. The `[ Exits: ... ]` block -- without it this is not a room
+         description at all, so we decline.
+      2. The server's own title colour, taken from ABOVE the exits block. The
+         same colour marks mobs and players, but those are always listed below
+         the exits, so position separates them.
+
+    Returns None rather than guessing. A wrong room name is worse than a
+    missing one: it writes a phantom node into the map permanently, and every
+    later route built on it inherits the error. A missing one just means the
+    agent looks again.
     """
-    clean = strip_ansi(text)
-    exits = parse_exits(clean)
+    exits = parse_exits(text)
     if exits is None:
         return None
 
-    lines = clean.splitlines()
-    exits_at = next((i for i, ln in enumerate(lines) if EXITS_LINE.search(ln)), None)
-    if exits_at is None:
+    raw = str(text or "")
+    cut = EXITS_MARKER.search(raw)
+    if cut is None:
+        return None
+    head = raw[:cut.start()]
+
+    marked = TITLE_MARKUP.search(head)
+    if marked is None:
+        # The server sent a room but no title markup -- colour is off, or this
+        # is an output mode we have never seen. Decline loudly rather than fall
+        # back to guessing: a silent guess is how phantom rooms got written in
+        # the first place, and a decline shows up in the logs as a parse gap we
+        # can go and look at.
+        return None
+    title = marked.group(1).strip()
+    if not title:
         return None
 
-    # The first PLAUSIBLE non-blank line above the exits block.
-    #
-    # Code review: this used to take the first non-blank line and then validate
-    # it, returning None if that one line failed. But a room reply is routinely
-    # preceded by unrelated output -- a mob speaking, a gossip channel line, or
-    # mud_connect's own "connected to host:port\n<welcome>" prefix. Those became
-    # the room NAME, the real title was swallowed into the description, and a
-    # phantom room plus phantom edges were written permanently to trails.json.
-    # Skipping implausible candidates instead of giving up on them fixes the
-    # common case without loosening the filters.
-    title, title_at = None, None
-    for i, raw in enumerate(lines[:exits_at]):
-        ln = raw.strip()
-        if not ln or not _plausible_title(ln):
-            continue
-        title, title_at = ln, i
-        break
+    # Description is whatever sits between the title and the exits block.
+    lines = strip_ansi(head).splitlines()
+    body = [ln.strip() for ln in lines if ln.strip() and ln.strip() != title]
+    # Drop anything above the title (narration that arrived before the room).
+    if title in [ln.strip() for ln in lines]:
+        at = [ln.strip() for ln in lines].index(title)
+        body = [ln.strip() for ln in lines[at + 1:] if ln.strip()]
 
-    if title is None:
-        return None
-
-    description = " ".join(
-        ln.strip() for ln in lines[title_at + 1:exits_at] if ln.strip()
-    ).strip()
-
-    return {"name": title, "exits": exits, "description": description or None}
-
-
-# Someone talking, emoting, or using a channel. These lines are prose, often
-# lack terminal punctuation (so the sentence filter misses them), and routinely
-# appear immediately above a room block.
-SPEECH = re.compile(
-    r"\b(says?|said|tells?|asks?|exclaims?|shouts?|yells?|whispers?|gossips?|"
-    r"auctions?|sings?|chats?|replies|answers|mutters|growls)\b[,:]?\s*['\"]",
-    re.IGNORECASE,
-)
-# Our own tool layer's output, not the game's.
-TOOL_TEXT = re.compile(
-    r"^(error\b|already |not connected|disconnected|connected to\b)", re.IGNORECASE
-)
-
-
-def _plausible_title(title):
-    if not title or len(title) > _MAX_TITLE_LEN:
-        return False
-    if STATUS_PROMPT.search(title):
-        return False
-    # Room titles are labels, not sentences.
-    if title.endswith((".", "!", "?")):
-        return False
-    if TOOL_TEXT.match(title):
-        return False
-    # Code review: speech and channel lines were being accepted as room names,
-    # inventing phantom rooms. They are the most common thing to appear
-    # directly above a room block in a populated zone.
-    if SPEECH.search(title):
-        return False
-    # A quoted fragment is speech even when the verb is unusual.
-    if title.count("'") >= 2 or title.count('"') >= 2:
-        return False
-    return True
+    return {"name": title, "exits": exits, "description": " ".join(body).strip() or None}
 
 
 def parse_score(text):
