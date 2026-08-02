@@ -34,7 +34,27 @@
 - Ensuring memory is utilized every time and there aren't gaps.
 - Intelligently extrapolating which locations go to which places, remembering optimal routes
 - Skill usage, resource management, inventory management, combat, leveling, character progression, sleeping, eating, drinking, movement, all are different systems we need incorporated into the loop
-- building discreet plan.md's for our different loops and systems can be a way to architect the system, suggested by A. Brown. For instance, combat file, movement, etc. AB will typically start things off along with some of his own ideas and direction in the file, an
+- building discreet plan.md's for our different loops and systems can be a way to architect the system, suggested by A. Brown. For instance, combat file, movement, etc. AB will typically start things off along with some of his own ideas and direction in the file, and then iterated with claude
+- AB also had success mixing claude and codex for different purposes within his plan. Using something like verrcel gateway could be useful to include a multi-model loop for different tasks (Code gen, review, plan-gen, write skills, etc.)
 
 ## Testing
 - We need extensive testing for all of our systems within our agentic loop
+- This was a big detour for AB and he spent half his week here. I ran into the same snafu with SolEnrich, where I couldn't really move forward until I squared this away. Doubly so because I was messing with real money via x402, so that skin in the game truly pushed this for me: Either I get this right and profit via solid tests, or you lose money both what you used to test, and what you would have potentially made (Thinking guy meme)
+
+## Red Flags to Watch for
+- When your plan isn't actually reasoning and you have brittle logioc:
+- Regex matching
+- stop word
+- Very specific coded cases (logic for a specific phrase within the game, it should be able to parse)
+- Simple number threshold checking (e.g. when we hit 20 rooms)
+- Hardcoded string labels standing in for categories ('if type == 'edge cases')
+
+## Tips
+- the goal isn't explicityly that you have to defeat the minotaur in order to pass. You are trying to build a capable system that COULD do this task, not create a messy terrible system that uses brittle shortcuts that wont stand under prod. If you can that's great, but remember the capable system is the goal.
+
+## Retrospective
+- Was the technical goal possible?
+- If not how long would it take?
+- WOuld it be worth the time and money for the solution?
+- What is the longetivity of our solution?
+- WHat domain knowledge did we gain about engineering agent loops?
