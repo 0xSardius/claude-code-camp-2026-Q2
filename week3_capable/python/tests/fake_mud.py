@@ -56,8 +56,15 @@ DIRECTIONS = {"north", "east", "south", "west", "up", "down",
 LONG = {"n": "north", "e": "east", "s": "south", "w": "west", "u": "up", "d": "down"}
 
 
-class FakeDisconnect(Exception):
-    """Raised where the real Session would raise on a dead socket."""
+from boukensha.mud_session import ConnectionError as SessionConnectionError  # noqa: E402
+
+
+class FakeDisconnect(SessionConnectionError):
+    """Raised where the real Session raises on a dead socket.
+
+    Subclasses the REAL exception type on purpose. A plain Exception would
+    take different paths through tools/mud.py and Agent than production does,
+    which would make every offline test about a fiction."""
 
 
 def _room_texts():

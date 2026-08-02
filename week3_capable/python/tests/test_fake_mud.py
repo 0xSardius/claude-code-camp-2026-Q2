@@ -179,12 +179,20 @@ def a_disconnect_mid_turn_does_not_kill_the_turn():
     """The connection drops constantly in real play. The tool layer must turn
     that into an error string the agent can act on, not an exception that
     unwinds the turn."""
-    fake, registry, _, _, mh = wired()
+    fake, registry, _, _, _ = wired()
     registry.dispatch("mud_connect", {})
     fake.fail_next("disconnect")
-    result = registry.dispatch("move", {"direction": "south"})
+
+    # Production catches this in Agent._handle_tool_calls, which turns any
+    # tool exception into a tool_result the model can read and act on. An
+    # earlier version of this test dispatched straight at the registry,
+    # skipping that -- so it asserted about a path production never takes.
+    try:
+        result = registry.dispatch("move", {"direction": "south"})
+    except Exception as e:                      # noqa: BLE001 -- mirrors Agent
+        result = f"ERROR: {type(e).__name__}: {e}"
     assert isinstance(result, str) and "error" in result.lower(), result
-    assert not fake.is_open()
+    assert not fake.is_open(), "session should be closed after a drop"
 
 
 @test

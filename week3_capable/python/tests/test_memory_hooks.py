@@ -135,11 +135,17 @@ def walking_into_a_room_records_it_without_being_asked():
 
 @test
 def moving_records_the_edge_it_walked():
+    """The move reply shows movement points DECREMENTED, because that is what
+    the real game does -- a walk always costs at least one. The earlier version
+    of this test reused the same status prompt for both replies, so it modelled
+    a walk that cost nothing, which the game never produces. That mattered once
+    memory started using the movement delta to tell a walk from a teleport."""
     mem, hooks = store(), Hooks()
     MemoryHooks(mem).install(hooks)
     fire_tool(hooks, "look", {}, LOOK)
     fire_tool(hooks, "move", {"direction": "north"},
-              LOOK.replace("The Temple Of Midgaard", "The Temple Square"))
+              LOOK.replace("The Temple Of Midgaard", "The Temple Square")
+                  .replace("85V", "84V"))
     a = mem.find_room("The Temple Of Midgaard")
     b = mem.find_room("The Temple Square")
     assert mem.route(a, b) == ["north"]

@@ -36,6 +36,7 @@ class MemoryHooks:
         # not trust a stored position, because anything could have happened to
         # the character while we were not running.
         self._position = None
+        self._moves = None
         self._needs_look = True
         self._injected_this_turn = False
         # Apply that rule to the STORE too, not just to _position. Otherwise
@@ -121,8 +122,10 @@ class MemoryHooks:
 
         # Vitals are nearly free: the status prompt rides on almost every reply.
         status = parse_status(text)
+        moves_before = self._moves
         if status:
             self.memory.update_state(hp_now=status["hp"], moves_now=status["moves"])
+            self._moves = status["moves"]
 
         if payload.name == "check":
             score = parse_score(text)
@@ -137,7 +140,32 @@ class MemoryHooks:
                 if room:
                     # Only record an edge we actually observed. No reverse is
                     # inferred -- CircleMUD has one-way exits.
-                    if previous and direction and self._position:
+                    #
+                    # ...and only if we actually WALKED. Dying teleports you to
+                    # the temple, and that reply carries a perfectly valid room
+                    # description, so the parse succeeds and we would record
+                    # "south from here leads to the Temple" -- an edge that does
+                    # not exist, written permanently, which then sends every
+                    # later route through it the wrong way. Found by the offline
+                    # harness on its first run; not reachable on demand against
+                    # a live server.
+                    #
+                    # The signal is structural rather than a phrase match: a
+                    # walk always costs at least one movement point, and being
+                    # relocated does not. Movement is already read off the
+                    # status prompt that rides on nearly every reply.
+                    #
+                    # Known hole: movement regenerates on a timer, so a tick
+                    # landing in the same moment as a move can mask the
+                    # decrement. That fails SAFE -- we skip a real edge, which
+                    # costs one re-walk, rather than recording a false one,
+                    # which is permanent. Same trade as an unparsable move.
+                    walked = (
+                        moves_before is None
+                        or self._moves is None
+                        or self._moves < moves_before
+                    )
+                    if previous and direction and self._position and walked:
                         self.memory.record_move(previous, direction, self._position)
                 else:
                     # A move whose reply we could not parse. We do NOT know
