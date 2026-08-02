@@ -141,6 +141,13 @@ class Logger:
     def hook_error(self, *, hook, handler, error):
         self._write_log({"phase": "hook_error", "hook": hook, "handler": handler, "error": error})
 
+    # week3: one line per driver cycle -- what it did and whether it cost a
+    # model call. The judgment ratio (week3's acceptance metric) is computed
+    # from these.
+    def driver_cycle(self, *, action, used_model, note=""):
+        self._write_log({"phase": "driver_cycle", "action": action,
+                         "used_model": bool(used_model), "note": note})
+
     def raw(self, *, data):
         if not is_debug():
             return

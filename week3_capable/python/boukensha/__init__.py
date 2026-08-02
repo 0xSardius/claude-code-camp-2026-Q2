@@ -55,6 +55,7 @@ from .backends.openai import OpenAI
 from .client import Client
 from .config import Config
 from .context import Context
+from .driver import Driver, Policy
 from .errors import ApiError, LoopError, TurnInterrupted, UnknownToolError, UnsupportedModelError
 from .logger import Logger
 from .memory import Memory
@@ -86,6 +87,8 @@ __all__ = [
     "PromptBuilder",
     "Client",
     "Agent",
+    "Driver",
+    "Policy",
     "Hook",
     "Hooks",
     "HookPayload",
