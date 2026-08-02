@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+root="$(cd "$(dirname "$0")/../.." && pwd)"
+[ -f "$root/.env" ] && { set -a; . "$root/.env"; set +a; }
+cd "$(dirname "$0")/../python"
+fail=0
+for t in tests/test_*.py; do
+  echo "--- $t"
+  uv run python "$t" || fail=1
+done
+exit $fail
