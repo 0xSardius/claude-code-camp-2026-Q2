@@ -350,6 +350,74 @@ def travel_and_engage_are_both_tools_the_model_can_call():
     assert "Do not call `move` step by step" in driver._hunt_task(driver.assess())
 
 
+# ---- a turn that achieved nothing ------------------------------------------
+
+@test
+def a_turn_that_achieved_nothing_triggers_recovery():
+    """The first live run's deadlock, reproduced. At 44% health the driver
+    would not rest (policy says 35%) and the model would not fight (it had
+    decided 44% was too low), so two of six cycles went to turns that looked
+    at the room and stopped. The driver now reads the structural fact -- the
+    last turn produced nothing -- instead of arguing about the number."""
+    fake, memory, driver, turns = build(hp="11/25")     # 44%: in the old dead zone
+    fake.hp = 11
+    a = driver.assess()
+    assert 0.35 < a.health < 0.5, f"the test needs to sit in the gap: {a.health}"
+
+    first = driver.step()
+    assert first.action == "hunted", first          # nothing wrong yet, so it hunts
+    assert driver._no_progress == 1, "the stub turn achieved nothing"
+
+    second = driver.step()
+    assert second.action == "resting", f"it re-asked the question instead: {second}"
+    assert "achieved nothing" in second.note, second.note
+    assert second.used_model is False, "recovering must not cost a model call"
+
+
+@test
+def a_dead_turn_at_full_health_does_not_rest():
+    """Resting is the response to being unfit to try again, not to failure as
+    such. An agent at full health in a room with nothing to fight must keep
+    trying and let stall detection stop it -- otherwise it rests forever in an
+    empty room, which is a worse loop than the one this replaced."""
+    _, _, driver, _ = build(hp="30/30")
+    driver.step()
+    assert driver._no_progress == 1
+    second = driver.step()
+    assert second.action == "hunted", f"nothing to recover from: {second}"
+
+
+@test
+def recovery_after_a_dead_turn_stops_at_the_resume_threshold():
+    """It rests back to resume_above_health, then stands up and tries again --
+    so the next turn is asked in a different situation than the one that
+    failed. That change of situation is the whole point."""
+    fake, memory, driver, _ = build(hp="11/25")
+    fake.hp = 11
+    driver.step()                                   # hunts, achieves nothing
+    assert driver.step().action == "resting"
+    # Heal in both places. Memory is what the decision reads; the fake is what
+    # the NEXT reply's status prompt will say, and the hooks read health back
+    # off that -- so healing in only one of the two gets undone a cycle later.
+    fake.hp = 24                                    # past 85% of 25
+    memory.update_state(hp_now=24)
+    third = driver.step()
+    assert third.action == "stood_up", third
+    assert driver.step().action == "hunted", "it should try again once recovered"
+
+
+@test
+def the_task_tells_the_model_the_policy_it_is_actually_run_under():
+    """The numbers are read from Policy rather than written into the prompt, so
+    retuning the policy cannot leave the prompt describing a rule the loop no
+    longer follows."""
+    _, _, driver, _ = build()
+    driver.policy = Policy(rest_below_health=0.25, resume_above_health=0.9)
+    task = driver._hunt_task(driver.assess())
+    assert "25%" in task and "90%" in task, task[-400:]
+    assert "35%" not in task, "a hardcoded number survived the retune"
+
+
 # ---- the recover half ------------------------------------------------------
 
 @test

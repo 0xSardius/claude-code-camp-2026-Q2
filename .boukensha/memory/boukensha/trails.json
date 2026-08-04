@@ -54,6 +54,11 @@
       "the eastern end of poor alley#0c54ab",
       "south",
       "grubby inn#309944"
+    ],
+    [
+      "the eastern end of poor alley#0c54ab",
+      "west",
+      "poor alley#94ced5"
     ]
   ],
   "rooms": {
@@ -104,6 +109,15 @@
       "first_seen": "2026-07-29",
       "name": "The Bakery"
     },
+    "the beggar ducks under your fist as you try to hit her.#94ced5": {
+      "description": "Poor Alley You are on Poor Alley, which continues further east.  You see the city wall to the west.",
+      "exits": [
+        "east",
+        "west"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "The beggar ducks under your fist as you try to hit her."
+    },
     "the common square#9081dc": {
       "description": "The common square, people pass you, talking to each other.  To the west is the poor alley and to the east is the dark alley.  To the north, this square is connected to the market square.  From the south you notice a nasty smell.",
       "exits": [
@@ -147,6 +161,16 @@
       ],
       "first_seen": "2026-07-29",
       "name": "The Temple Square"
+    },
+    "wall road#947519": {
+      "description": "You are walking next to the western city wall.  Wall Road continues further north and south.  A small, poor alley leads east. Some letters have been written on the wall here.",
+      "exits": [
+        "east",
+        "north",
+        "south"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "Wall Road"
     }
   }
 }

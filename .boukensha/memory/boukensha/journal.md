@@ -1,15 +1,15 @@
 # boukensha
 
-_Generated 2026-08-02 from recorded state. Numbers in this section are rendered from the store, not written by the agent._
+_Generated 2026-08-04 from recorded state. Numbers in this section are rendered from the store, not written by the agent._
 
 ## Status
 - **Level:** 1
-- **HP:** 25/25
-- **Experience:** 122
-- **Gold:** 10
-- **Last seen:** Grubby Inn
-- **Rooms known:** 9
-- **Routes walked:** 11
+- **HP:** 12/25
+- **Experience:** 189
+- **Gold:** 20
+- **Last seen:** Wall Road
+- **Rooms known:** 11
+- **Routes walked:** 12
 
 ## What it knows
 
@@ -17,6 +17,7 @@ _Generated 2026-08-02 from recorded state. Numbers in this section are rendered 
 - The Bakery in Midgaard sells: a danish pastry (7 coins, unlimited), a bread (14 coins, unlimited), and a waybread (71 coins, unlimited).
 - Confirmed again: The Bakery in Midgaard (north of Main Street, which is west of Market Square) sells: a danish pastry (7 coins, unlimited), a bread (14 coins, unlimited), a waybread (71 coins, unlimited).
 - The Eastern End Of Poor Alley (west of Common Square, east of Poor Alley) sometimes has an 'odif yltsaeb' mob - a joke/mirror version of the beastly fido (name reversed), full HP, considered 'perfect match' at level 1. Poor Alley itself (further west) has a harmless beggar.
+- Poor Alley (west of Eastern End Of Poor Alley) has its own beggar mob following the same escalating stun/revive pattern as the Grubby Inn beggar. Fleeing west from Poor Alley leads to a new room called Wall Road (next to the western city wall, exits north/east/south, with some letters written on the wall).
 
 ## What it has learned
 
@@ -27,3 +28,7 @@ _Generated 2026-08-02 from recorded state. Numbers in this section are rendered 
 - [2026-08-02] The beggar in Grubby Inn is a repeatable, escalating fight: each "kill" actually just stuns/wounds it further (small exp each time, 1-7), and it keeps reviving and re-engaging in the same room. The final real kill (after several stuns) gave a big +40 exp payout and dropped 10 gold coins. Worth repeating this loop at level 1 - very safe (health stayed 70-100% throughout) and lucrative for a low-level thief.
 - [2026-08-02] The odif yltsaeb mob follows the same escalating stun/revive pattern as the beggar: repeated small-exp knockdowns (2-5 exp) followed by a final "mortally wounded" kill worth a big payout (+47 exp seen). Corpse from odif yltsaeb had no lootable items though (unlike the beggar's gold).
 - [2026-08-02] A 'Peacekeeper' guard-type NPC can spawn in The Eastern End Of Poor Alley alongside the fido - same danger class as a cityguard. Check the room for guard/peacekeeper NPCs before engaging anything there; retreat if one is present.
+- [2026-08-04] The beggar in Grubby Inn is not actually low-risk if you chain engage() calls back-to-back without pausing: 5-6 consecutive rounds took me from 100% to 44% HP before the final 'mortally wounded' kill landed. Consider pausing/resting between stun-rounds rather than chaining engage repeatedly, or stop earlier once below ~60% HP.
+- [2026-08-04] Confirmed: the beggar's final death (after the 'mortally wounded' state) pays out its big exp bonus (+47 exp seen) even on a later turn/check after the last engage() call reported only a small per-round gain -- the kill resolves asynchronously, so don't be surprised if score check later shows a big jump you didn't directly trigger.
+- [2026-08-04] Decided to skip re-engaging the beastly fido at Eastern End Of Poor Alley while starting HP was only 56% -- even though consider said 'perfect match', past experience shows this fido eats 15+ rounds bare-fisted and doesn't die (flees instead), so it's not worth the HP gamble when not starting at full health. Better to wait for the beggar corpse in Grubby Inn to respawn/revive, or recover HP first.
+- [2026-08-04] The Eastern End Of Poor Alley can spawn an 'oozing green gelatinous blob' alongside the fido - consider on the blob returned 'You ARE mad!' (extremely dangerous, avoid). Since multiple hostile mobs in the same room can potentially join a fight, do not engage the fido here while the blob is also present - too risky. Retreat and look elsewhere until the room clears.

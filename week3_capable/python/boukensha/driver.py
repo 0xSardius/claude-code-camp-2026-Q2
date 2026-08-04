@@ -56,6 +56,7 @@ class Policy:
     resume_above_movement: float = 0.60
     stall_cycles: int = 3                # cycles with no progress before we stop
     max_rest_cycles: int = 12            # give up resting rather than loop forever
+    recover_after_dead_cycles: int = 1   # turns that achieved nothing before we recover
     flee_below_health: float = 0.30      # break off a fight at this much HP left
     max_fight_rounds: int = 15           # a fight this long is not going our way
     max_travel_steps: int = 30           # a route longer than this is a loop, not a route
@@ -194,6 +195,29 @@ class Driver:
             return "health"
         if a.movement is not None and a.movement < self.policy.rest_below_movement:
             return "movement"
+        # A turn that achieved nothing, and we are not in shape to try again.
+        #
+        # WHY THIS IS HERE AND NOT A BIGGER NUMBER ON rest_below_health. The
+        # first live run deadlocked between 35% and 50% health: the driver
+        # would not rest, because policy said 44% was fine, and the model would
+        # not fight, because it had decided 44% was not. Two of six cycles went
+        # to turns that looked at the room and stopped. Raising the threshold to
+        # 50% would close that particular gap and reopen it silently the moment
+        # the model's instinct moved -- it is tuning our policy to fit someone
+        # else's opinion.
+        #
+        # The structural fact is better than the number: the last turn produced
+        # nothing. That is true whatever the model's reason was, and the two
+        # dead cycles had DIFFERENT reasons -- one was hurt, the other judged
+        # the room empty of anything worth fighting. Re-asking the identical
+        # question after a turn that failed is the actual defect; recovering
+        # first changes the situation the next turn is asked about.
+        #
+        # Same move as experience-rising to detect a kill and movement cost to
+        # detect a real walk: read the structural signal, not the wording.
+        if (self._no_progress >= self.policy.recover_after_dead_cycles
+                and not self._recovered(a)):
+            return "a turn that achieved nothing"
         return None
 
     def _recovered(self, a):
@@ -567,6 +591,18 @@ class Driver:
             "`check` repeatedly to watch it regenerate. The loop around you handles "
             "recovery between turns. When you have made a kill or decided this room "
             "has nothing worth fighting, say so and end your turn.\n\n"
+            # The numbers come from Policy rather than being written out here, so
+            # that retuning the policy cannot leave the prompt describing a rule
+            # the loop no longer follows. The live run's deadlock was exactly a
+            # disagreement about this number; stating it removes the guesswork,
+            # and _needs_recovery covers the case where the model disagrees anyway.
+            f"About your health: the loop rests you automatically below "
+            f"{self.policy.rest_below_health:.0%}, and after any turn that achieves "
+            f"nothing it rests you back up to {self.policy.resume_above_health:.0%} "
+            f"before asking again. So above {self.policy.rest_below_health:.0%} you "
+            f"are expected to fight rather than wait. If you genuinely think you are "
+            f"too hurt, end the turn saying so — that counts as a turn that achieved "
+            f"nothing, and you will be rested before the next one.\n\n"
             "Do not leave the zone you are in, and do not attack guards or players."
         )
 
