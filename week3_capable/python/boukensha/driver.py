@@ -28,6 +28,7 @@ the system should have reasoned its way to.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 
 from .hooks import Hook, HookPayload
@@ -57,6 +58,7 @@ class Policy:
     stall_cycles: int = 3                # cycles with no progress before we stop
     max_rest_cycles: int = 12            # give up resting rather than loop forever
     recover_after_dead_cycles: int = 1   # turns that achieved nothing before we recover
+    rest_seconds: float = 20.0           # real seconds to wait between rest checks
     flee_below_health: float = 0.30      # break off a fight at this much HP left
     max_fight_rounds: int = 15           # a fight this long is not going our way
     max_travel_steps: int = 30           # a route longer than this is a loop, not a route
@@ -138,7 +140,11 @@ class RunResult:
 
 class Driver:
     def __init__(self, *, goal, memory, registry, run_turn, policy=None, logger=None,
-                 hooks=None):
+                 hooks=None, sleep=None):
+        # Injectable so the offline tests do not actually wait. Production
+        # passes nothing and gets the real clock, which is the only thing that
+        # makes resting work -- see the resting branch of _step.
+        self._sleep = sleep if sleep is not None else time.sleep
         self.goal = goal
         self.memory = memory
         self.registry = registry
@@ -191,10 +197,14 @@ class Driver:
     # ---- mechanical actions ---------------------------------------------
 
     def _needs_recovery(self, a):
+        # Full phrases, because this string IS the note on the cycle and ends up
+        # in the session log. Returning bare "health" and formatting it at the
+        # call site produced "low a turn that achieved nothing" in the 2026-08-04
+        # log once a third reason existed that was not a noun.
         if a.health is not None and a.health < self.policy.rest_below_health:
-            return "health"
+            return "low health"
         if a.movement is not None and a.movement < self.policy.rest_below_movement:
-            return "movement"
+            return "low movement"
         # A turn that achieved nothing, and we are not in shape to try again.
         #
         # WHY THIS IS HERE AND NOT A BIGGER NUMBER ON rest_below_health. The
@@ -528,6 +538,22 @@ class Driver:
                 self._do("set_position", {"position": "stand"})
                 return CycleResult("stood_up", False, "recovered", a)
             self._resting += 1
+            # WAIT. Regeneration happens on the game's clock, not ours.
+            #
+            # Without this the rest loop is a busy-loop: the live run on
+            # 2026-08-04 sat down and then spun `check score` three times inside
+            # ONE SECOND, healing nothing, and ended the run at less health than
+            # it started resting with. All twelve max_rest_cycles would have
+            # burned in about four seconds, after which it stands up still hurt
+            # and walks straight back into the deadlock resting was added to
+            # break. The decision to rest was right; resting just did not do
+            # anything. Only max_cycles running out first hid it.
+            #
+            # There is no clever version of this. Real health takes real time,
+            # so the loop has to spend some. The interval is policy -- a number
+            # a reviewer can argue with -- not a measurement of the server's
+            # tick, which we deliberately do not try to infer.
+            self._sleep(self.policy.rest_seconds)
             self._do("check", {"kind": "score"})     # refresh vitals while waiting
             return CycleResult("resting", False, f"cycle {self._resting}", a)
 
@@ -535,7 +561,7 @@ class Driver:
         if why:
             self._resting = 1
             self._do("set_position", {"position": "rest"})
-            return CycleResult("resting", False, f"low {why}", a)
+            return CycleResult("resting", False, why, a)
 
         # 2. Level available -> go train. WHICH skill to practise is a
         #    judgment (it depends on playstyle and what the character lacks),

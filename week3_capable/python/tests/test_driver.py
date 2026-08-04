@@ -54,8 +54,12 @@ def build(*, exp=100, exp_to_level=500, hp="30/30", moves="85/85", level=3):
     MemoryHooks(memory, registry=registry).install(hooks)
     memory.update_state(level=level, exp=exp, exp_to_level=exp_to_level, hp=hp, moves=moves)
 
+    # slept records how long the driver WOULD have waited, so the tests can
+    # assert that resting spends real time without any test actually spending it.
+    slept = []
     driver = Driver(goal="reach level 5", memory=memory, registry=registry,
-                    run_turn=run_turn, hooks=hooks)
+                    run_turn=run_turn, hooks=hooks, sleep=slept.append)
+    driver.slept = slept
     return fake, memory, driver, turns
 
 
@@ -372,6 +376,26 @@ def a_turn_that_achieved_nothing_triggers_recovery():
     assert second.action == "resting", f"it re-asked the question instead: {second}"
     assert "achieved nothing" in second.note, second.note
     assert second.used_model is False, "recovering must not cost a model call"
+
+
+@test
+def resting_waits_for_the_game_clock():
+    """The live run on 2026-08-04 sat down and then spun `check score` three
+    times inside ONE SECOND, healing nothing, and finished with less health
+    than it started resting with. Regeneration is on the server's tick, so a
+    rest loop that does not spend real time is a busy-loop that burns its whole
+    budget in seconds and stands up still hurt."""
+    fake, memory, driver, _ = build(hp="5/30")
+    fake.hp = 5                     # or the status prompt heals it on the first reply
+    driver.policy = Policy(rest_seconds=20.0)
+
+    first = driver.step()
+    assert first.action == "resting" and first.note == "low health", first
+    assert driver.slept == [], "sitting down is immediate; only the waiting waits"
+
+    second = driver.step()
+    assert second.action == "resting", second
+    assert driver.slept == [20.0], f"the rest cycle did not spend any time: {driver.slept}"
 
 
 @test

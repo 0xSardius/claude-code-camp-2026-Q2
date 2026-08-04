@@ -59,6 +59,31 @@
       "the eastern end of poor alley#0c54ab",
       "west",
       "poor alley#94ced5"
+    ],
+    [
+      "wall road#947519",
+      "east",
+      "poor alley#94ced5"
+    ],
+    [
+      "the common square#9081dc",
+      "north",
+      "market square#9081dc"
+    ],
+    [
+      "market square#9081dc",
+      "north",
+      "the temple square#9081dc"
+    ],
+    [
+      "main street#9081dc",
+      "south",
+      "the armory#309944"
+    ],
+    [
+      "the armory#309944",
+      "north",
+      "main street#9081dc"
     ]
   ],
   "rooms": {
@@ -100,6 +125,14 @@
       ],
       "first_seen": "2026-08-02",
       "name": "Poor Alley"
+    },
+    "the armory#309944": {
+      "description": "The armory has a wide assortment of armor displayed on the walls and in the windows. Helmets, shields, and suits of armor are for sale. To the north is the main street. On the wall is a small note.",
+      "exits": [
+        "north"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "The Armory"
     },
     "the bakery#7e3fb5": {
       "description": "You are standing inside the small bakery.  A sweet scent of danish and fine bread fills the room.  The bread and Danish are arranged in fine order on the shelves, and seem to be of the finest quality. A small sign is on the counter.",

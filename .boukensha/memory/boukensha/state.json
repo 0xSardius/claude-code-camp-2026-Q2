@@ -1,15 +1,15 @@
 {
-  "exp": 189,
-  "exp_to_level": 1811,
-  "gold": 20,
-  "hp": "12/25",
-  "hp_now": 12,
+  "exp": 291,
+  "exp_to_level": 1709,
+  "gold": 30,
+  "hp": "15/25",
+  "hp_now": 15,
   "level": 1,
   "mana": "100/100",
-  "moves": "84/85",
-  "moves_now": 83,
-  "position": "wall road#947519",
-  "position_state": "fighting",
+  "moves": "85/85",
+  "moves_now": 85,
+  "position": "poor alley#94ced5",
+  "position_state": "resting",
   "title": "Boukensha the Swordpupil",
-  "updated_at": "2026-08-04T18:47:52-04:00"
+  "updated_at": "2026-08-04T19:54:51-04:00"
 }
