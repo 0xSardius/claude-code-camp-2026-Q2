@@ -57,6 +57,7 @@ LONG = {"n": "north", "e": "east", "s": "south", "w": "west", "u": "up", "d": "d
 
 
 from boukensha.mud_session import ConnectionError as SessionConnectionError  # noqa: E402
+from boukensha.mud_session import SessionTimeout  # noqa: E402
 
 
 class FakeDisconnect(SessionConnectionError):
@@ -101,7 +102,8 @@ class FakeSession:
         """Arm a failure for the next command. The whole point of this class:
         these are the situations you cannot summon against a live server, and
         they are where week 2's real bugs were."""
-        if kind not in ("disconnect", "refuse_move", "no_movement", "attacked", "death"):
+        if kind not in ("disconnect", "refuse_move", "no_movement", "attacked",
+                        "death", "login_timeout"):
             raise ValueError(f"unknown failure {kind!r}")
         self._fail = kind
 
@@ -121,6 +123,16 @@ class FakeSession:
     def login(self, username, password):
         if not self._open:
             raise FakeDisconnect("session not open")
+        if self._fail == "login_timeout":
+            # The socket stays OPEN, which is the whole point of this failure --
+            # it is what the real Session does, and what made a failed login
+            # feed later game commands into the login prompt. Seen live
+            # 2026-08-04 when the server had lost its player files.
+            self._fail = None
+            raise SessionTimeout(
+                "read_until re.compile('Password', re.IGNORECASE) after 30s; "
+                "server sent: 'Did I get that right, Boukensha (Y/N)?'"
+            )
         self._pending = self._render(self.room)
         return self._pending
 

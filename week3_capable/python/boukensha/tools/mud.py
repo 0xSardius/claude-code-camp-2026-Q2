@@ -42,6 +42,24 @@ def register(registry, *, host="localhost", port=4000, name, password, session=N
             welcome = session.login(name, password)
             return f"connected to {session.host}:{session.port}\n{welcome or ''}"
         except SessionError as e:
+            # A socket that opened but never got through login is NOT a usable
+            # session, and leaving it open is worse than having no session at
+            # all. Observed live 2026-08-04, when the server had lost its player
+            # files and treated the character as new: login timed out waiting
+            # for "Password", the socket stayed open, is_open() went on saying
+            # yes, and so every later tool sent its command straight into the
+            # LOGIN prompt. The server's own log records `Losing player: Look.`
+            # -- the agent's `look` was received as a character name, two
+            # prompts deep into character creation. Nothing persisted that time.
+            #
+            # It also made the failure unrecoverable in the other direction:
+            # mud_connect kept answering "already connected", so the retry that
+            # would have fixed a merely-transient failure never ran. Closing
+            # here makes the reported state honest and makes a retry possible.
+            try:
+                session.close()
+            except Exception:  # noqa: BLE001 -- already broken; the error above is the news
+                pass
             return f"error: {e}"
 
     def mud_disconnect():

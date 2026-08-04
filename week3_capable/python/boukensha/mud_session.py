@@ -159,7 +159,22 @@ class Session:
                     return out
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise SessionTimeout(f"read_until {pattern!r} after {timeout}s")
+                    # Report the timeout we actually waited, not the argument --
+                    # every caller that relies on the default passed None here,
+                    # so this read "after Nones" in the one log that mattered.
+                    #
+                    # And say what the server DID send. A timeout waiting for
+                    # "Password" means the server said something else, and that
+                    # something else is the whole diagnosis: "Did I get that
+                    # right (Y/N)?" means it thinks the character is new, which
+                    # is a server-side problem no retry will fix. Without the
+                    # tail, that cost a debugging session to work out.
+                    effective = timeout if timeout is not None else self._timeout
+                    tail = self._buffer[-200:].strip()
+                    saw = f"server sent: {tail!r}" if tail else "server sent nothing"
+                    raise SessionTimeout(
+                        f"read_until {pattern!r} after {effective}s; {saw}"
+                    )
                 if self._closed:
                     raise ConnectionError("socket closed while waiting")
                 self._cv.wait(remaining)

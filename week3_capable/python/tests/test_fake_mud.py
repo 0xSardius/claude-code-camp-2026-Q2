@@ -208,6 +208,64 @@ def exhaustion_is_visible_rather_than_silent():
     assert memory.state.get("moves_now") == 0, memory.state
 
 
+# ---- a login that never completes -------------------------------------------
+
+@test
+def a_failed_login_leaves_no_usable_session():
+    """Observed live 2026-08-04. The server had lost its player files and
+    treated the character as new, so login timed out waiting for 'Password'.
+    The socket stayed open, is_open() went on saying yes, and every later tool
+    sent its command into the LOGIN prompt -- the server's log recorded
+    `Losing player: Look.`, the agent's `look` taken as a character name, two
+    prompts into character creation."""
+    fake, registry, memory, hooks, _ = wired()
+    registry.dispatch("mud_disconnect", {})     # register() auto-connects
+    fake.fail_next("login_timeout")
+
+    out = registry.dispatch("mud_connect", {})
+    assert out.startswith("error:"), out
+    assert "Did I get that right" in out, f"the diagnosis has to survive: {out}"
+
+    assert registry.dispatch("mud_status", {}) == "disconnected", "it lied about being connected"
+    assert "not connected" in registry.dispatch("look", {}), "a game command reached the login prompt"
+
+
+@test
+def a_failed_login_can_be_retried():
+    """The other half of the same bug: mud_connect kept answering 'already
+    connected', so the retry that fixes a merely-transient failure never ran."""
+    fake, registry, memory, hooks, _ = wired()
+    registry.dispatch("mud_disconnect", {})     # register() auto-connects
+    fake.fail_next("login_timeout")
+    assert registry.dispatch("mud_connect", {}).startswith("error:")
+
+    out = registry.dispatch("mud_connect", {})
+    assert out.startswith("connected to"), f"the retry was refused: {out}"
+    assert "not connected" not in registry.dispatch("look", {})
+
+
+@test
+def a_read_timeout_reports_what_the_server_actually_said():
+    """The message that cost a debugging session read 'after Nones' and threw
+    away the server's reply -- which was the entire diagnosis."""
+    import re as _re
+
+    from boukensha.mud_session import Session, SessionTimeout
+    s = Session(host="localhost", port=4000, timeout=0.05)
+    s._socket = object()            # look open without touching a network
+    s._closed = False
+    s._buffer = "Did I get that right, Boukensha (Y/N)?"
+    try:
+        s.read_until(_re.compile("Password", _re.I))
+    except SessionTimeout as e:
+        msg = str(e)
+    else:
+        raise AssertionError("expected a timeout")
+    assert "Nones" not in msg, msg
+    assert "0.05s" in msg, msg
+    assert "Did I get that right" in msg, msg
+
+
 if __name__ == "__main__":
     failures = 0
     for fn in TESTS:
