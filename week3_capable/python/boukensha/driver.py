@@ -58,6 +58,7 @@ class Policy:
     max_rest_cycles: int = 12            # give up resting rather than loop forever
     flee_below_health: float = 0.30      # break off a fight at this much HP left
     max_fight_rounds: int = 15           # a fight this long is not going our way
+    max_travel_steps: int = 30           # a route longer than this is a loop, not a route
 
 
 @dataclass
@@ -310,6 +311,108 @@ class Driver:
                 f"Health {'unknown' if a.health is None else f'{a.health:.0%}'}. "
                 f"Break off and pick a different target.")
 
+    # ---- the mechanical walk ---------------------------------------------
+
+    def travel(self, destination):
+        """Walk to a place already in memory. No model calls at all.
+
+        THIS IS THE CASE THE WEEK'S CENTRAL QUESTION IS ABOUT. Walking a route
+        is an algorithm -- shortest path over stored edges -- and the plan doc
+        asks whether an algorithm doing the walking can be called capable. It
+        can, because of where the map came from: every edge here was recorded
+        when the agent actually walked it and saw where it came out. Nothing is
+        inferred, and reverse directions are only known once walked, because
+        CircleMUD has one-way exits. The judgment happened at acquisition; this
+        replays it for free. A wall-follower that walks into the lava pit is the
+        opposite case and would fail on exactly that distinction.
+
+        WHY IT RECOMPUTES THE ROUTE EVERY STEP instead of walking the list it
+        got at the start. Following a fixed list assumes each move lands where
+        the map said it would, and the whole reason this codebase records only
+        walked edges is that the map is not trusted that far. Recomputing means
+        a move that comes out somewhere unexpected re-plans from wherever we
+        actually are, rather than continuing to walk directions that no longer
+        apply. It costs nothing -- the search is over a map with a few dozen
+        edges, in memory.
+
+        THREE WAYS IT STOPS SHORT, all reported rather than pushed through,
+        because each one is a decision the model should make:
+
+          unknown place   never been there. "I don't know the way" is a real
+                          answer that means go explore, not an error.
+          blocked         the move did not change where we are -- a closed
+                          door, a mob in the way, or being in combat. Which of
+                          those it is, and what to do, is judgment.
+          out of movement walking is not free. The driver's own recovery cycle
+                          handles resting; travel just stops before it strands
+                          the character somewhere with no way home.
+
+        The blocked check is "where we are did not change", which also fires
+        when a move DID happen but its reply could not be parsed -- an unlit
+        room being the real case. That is a false report of being blocked, and
+        it is the safe direction to be wrong in: we stop and hand the situation
+        to the model, rather than continuing to walk from a room we are no
+        longer in. Telling the two apart needs the room text, and an unlit room
+        is precisely where there is none.
+        """
+        target = self.memory.find_room(destination)
+        if target is None:
+            known = sorted({r.get("name", "")
+                            for r in self.memory.rooms().values() if r.get("name")})
+            return (f"NO SUCH PLACE in memory: '{destination}'. Places you know: "
+                    f"{', '.join(known) if known else '(none yet)'}. "
+                    f"You will have to explore to find it.")
+
+        walked = []
+        for _ in range(self.policy.max_travel_steps):
+            here = self.memory.position
+            if here is None:
+                # Position is a belief, and an unparsable move clears it rather
+                # than guessing (see memory_hooks). One look re-establishes it.
+                self._do("look", {})
+                here = self.memory.position
+                if here is None:
+                    return (f"LOST after {len(walked)} moves ({', '.join(walked) or 'none'}): "
+                            f"I cannot tell which room I am in, so I stopped rather than "
+                            f"walk blind. Look around and try again.")
+            if here == target:
+                name = self.memory.rooms().get(target, {}).get("name", destination)
+                if not walked:
+                    return f"ALREADY at {name}."
+                return (f"ARRIVED at {name} after {len(walked)} moves "
+                        f"({', '.join(walked)}).")
+
+            route = self.memory.route(here, target)
+            if route is None:
+                name = self.memory.rooms().get(target, {}).get("name", destination)
+                return (f"NO KNOWN ROUTE to {name} from here, after {len(walked)} moves "
+                        f"({', '.join(walked) or 'none'}). The place is in memory but no "
+                        f"path from here has ever been walked. Explore toward it.")
+
+            a = self.assess()
+            if a.movement is not None and a.movement < self.policy.rest_below_movement:
+                return (f"STOPPED after {len(walked)} moves ({', '.join(walked) or 'none'}): "
+                        f"movement down to {a.movement:.0%} and the route is not finished. "
+                        f"Rest, then travel again -- the route will be recomputed from "
+                        f"wherever you are.")
+
+            direction = route[0]
+            self._do("move", {"direction": direction})
+            if self.memory.position == here:
+                # Same room after a move means it did not happen. Reported, not
+                # retried: retrying a blocked direction is how a mechanical
+                # walker spends thirty moves going nowhere.
+                room = self.memory.rooms().get(here, {}).get("name", "here")
+                return (f"BLOCKED going {direction} from {room} after {len(walked)} moves "
+                        f"({', '.join(walked) or 'none'}). Something is in the way -- a "
+                        f"closed door, a mob, or you are in combat. Deal with it or find "
+                        f"another way.")
+            walked.append(direction)
+
+        return (f"GAVE UP after {len(walked)} moves ({', '.join(walked)}) without reaching "
+                f"'{destination}'. That is more steps than any real route here, so "
+                f"something is wrong with the map or the way is not what memory thinks.")
+
     def install_tools(self, registry=None):
         """Expose the mechanical routines as tools the model can invoke.
 
@@ -337,6 +440,22 @@ class Driver:
                                           "has not noticed you."},
             },
             block=self.engage,
+        )
+        reg.tool(
+            "travel",
+            description=(
+                "Walk all the way to a place you have already been, by name (e.g. 'the "
+                "bakery'). One call covers the whole trip. Use this INSTEAD of calling "
+                "move over and over. It tells you if the place is unknown, if no route "
+                "from here has been walked yet, or if something blocked the way — in "
+                "each of those cases it stops and reports rather than guessing, and it "
+                "is then your decision what to do."
+            ),
+            parameters={
+                "destination": {"type": "string",
+                                "description": "Place name, e.g. 'Market Square'"},
+            },
+            block=self.travel,
         )
         return self
 
@@ -437,6 +556,9 @@ class Driver:
             "- Then call `engage` with that target. ONE call fights the whole thing "
             "and reports what happened. Do not call `attack` in a loop -- `engage` "
             "already does that, and it will flee for you if your health drops.\n"
+            "- To go somewhere you have already been, call `travel` with the place name. "
+            "ONE call walks the whole way. Do not call `move` step by step for a route "
+            "you already know.\n"
             "- Loot the corpse afterwards.\n"
             "- Record anything surprising with `remember_learning`, especially a mob "
             "that turned out to be far stronger than it looked, or a room where "

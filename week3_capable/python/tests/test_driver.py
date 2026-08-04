@@ -235,6 +235,121 @@ def the_model_is_told_to_engage_rather_than_to_swing():
     assert "DO NOT rest" in task, "the model will otherwise poll check while healing"
 
 
+# ---- the mechanical walk ---------------------------------------------------
+
+def explore(driver, *directions):
+    """Walk the fake map by hand, the way the agent first does: each move is
+    seen and recorded. Everything travel later replays comes from here."""
+    driver._do("look", {})
+    for d in directions:
+        driver._do("move", {"direction": d})
+
+
+@test
+def walking_a_known_route_costs_no_model_call():
+    """The whole explore-then-replay claim in one test. The map is built by
+    walking it; the walk back is then an algorithm over what was seen."""
+    fake, memory, driver, turns = build()
+    explore(driver, "south", "south", "north", "north")   # both directions seen
+    assert fake.room == "The Temple Of Midgaard", fake.room
+
+    fake.sent.clear()
+    out = driver.travel("Market Square")
+
+    assert "ARRIVED" in out and "2 moves" in out, out
+    assert turns == [], "the walk called the model"
+    assert fake.room == "Market Square", fake.room
+    assert [c for c in fake.sent if c in ("south", "north")] == ["south", "south"], fake.sent
+
+
+@test
+def it_will_not_walk_a_route_it_has_only_seen_one_way():
+    """CircleMUD has one-way exits, so memory records the reverse only once it
+    is actually walked. Refusing to guess it is the point, not a gap: a guessed
+    reverse edge is exactly the kind of unearned knowledge that makes an
+    algorithmic walker incapable."""
+    _, _, driver, _ = build()
+    explore(driver, "south", "south")             # south twice, never back north
+    out = driver.travel("The Temple Of Midgaard")
+    assert "NO KNOWN ROUTE" in out, out
+    assert "Explore" in out, "it should say what to do about it"
+
+
+@test
+def travel_says_so_when_it_has_never_been_there():
+    """'I don't know the way' is a real answer that means go explore."""
+    _, _, driver, _ = build()
+    explore(driver)
+    out = driver.travel("Atlantis")
+    assert "NO SUCH PLACE" in out, out
+    assert "Temple Of Midgaard" in out, "it should list what it does know"
+
+
+@test
+def travel_stops_when_something_blocks_the_way():
+    """A blocked move is a decision, not a retry. Retrying is how a mechanical
+    walker spends thirty moves going nowhere."""
+    fake, _, driver, _ = build()
+    explore(driver, "south", "north")
+    fake.fail_next("refuse_move")
+    out = driver.travel("The Temple Square")
+    assert "BLOCKED" in out and "south" in out, out
+
+
+@test
+def travel_stops_before_it_strands_the_character():
+    """Walking is not free. Stopping with movement left is what makes the
+    driver's next recovery cycle able to fix it."""
+    fake, _, driver, _ = build()
+    explore(driver, "south", "south", "north", "north")
+    fake.moves = 2                                # 2/85, well under the threshold
+    driver._do("look", {})                        # status prompt carries the new value
+    out = driver.travel("Market Square")
+    assert "STOPPED" in out and "movement" in out, out
+
+
+@test
+def travel_replans_from_where_it_actually_is():
+    """It recomputes the route every step rather than walking the list it got
+    at the start. Being moved mid-route -- which the MUD does on death -- must
+    re-plan from the new room, not carry on with stale directions."""
+    fake, memory, driver, _ = build()
+    explore(driver, "south", "south", "north", "north")
+
+    original = driver._do
+    moved = []
+
+    def teleport_once(tool, args=None):
+        out = original(tool, args)
+        if tool == "move" and not moved:
+            moved.append(True)
+            fake.room = "The Bakery"              # something else relocated us
+            original("look", {})                  # and we notice on the next look
+        return out
+
+    driver._do = teleport_once
+    out = driver.travel("Market Square")
+    # A walker following its original list would have sent the second "south"
+    # from The Bakery and ended up somewhere it never intended. Recomputing sees
+    # the new room, finds no walked path out of it, and says so.
+    assert "NO KNOWN ROUTE" in out, out
+    assert "after 1 moves" in out, f"it should stop at the teleport, not walk on: {out}"
+    assert fake.room == "The Bakery", fake.room
+
+
+@test
+def travel_and_engage_are_both_tools_the_model_can_call():
+    """Registering them as TOOLS is what keeps the boundary honest: the model
+    still decides where to go and what to fight, it just cannot spend a call
+    per step."""
+    _, _, driver, _ = build()
+    driver.install_tools()
+    registered = driver.registry._context.tools
+    assert "travel" in registered and "engage" in registered, sorted(registered)
+    assert "Do not call `attack` in a loop" in driver._hunt_task(driver.assess())
+    assert "Do not call `move` step by step" in driver._hunt_task(driver.assess())
+
+
 # ---- the recover half ------------------------------------------------------
 
 @test
