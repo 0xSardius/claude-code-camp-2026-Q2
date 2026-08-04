@@ -16,9 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("BOUKENSHA_DIR", str(Path(__file__).resolve().parent.parent.parent.parent / ".boukensha"))
 
 from boukensha.context import Context  # noqa: E402
-from boukensha.driver import Driver, Policy  # noqa: E402
+from boukensha.driver import Driver, Policy, RunResult  # noqa: E402
 from boukensha.memory import Memory  # noqa: E402
-from boukensha.hooks import Hooks  # noqa: E402
+from boukensha.hooks import Hook, HookPayload, Hooks  # noqa: E402
 from boukensha.memory_hooks import MemoryHooks  # noqa: E402
 from boukensha.registry import Registry  # noqa: E402
 from boukensha.tools import mud as mud_tools  # noqa: E402
@@ -291,13 +291,68 @@ def a_dead_connection_does_not_end_the_run():
 
 @test
 def it_reports_the_judgment_ratio():
-    """Week 3's acceptance number: what fraction of cycles needed the model."""
+    """Week 3's acceptance number: what fraction of ACTIONS needed the model."""
     _, memory, driver, _ = build(hp="5/30")
     result = driver.run(max_cycles=4)
     assert result.judgment_ratio is not None
     assert 0.0 <= result.judgment_ratio <= 1.0
     # This run opens with two mechanical recovery cycles, so it cannot be all model.
     assert result.judgment_ratio < 1.0, result.judgment_ratio
+    assert result.mechanical_actions > 0, result.mechanical_actions
+
+
+@test
+def a_whole_fight_counts_as_one_judgment_not_one_per_swing():
+    """The bug this metric had, reproduced. The first live run reported a 100%
+    judgment ratio -- every cycle hunted, so every cycle called the model --
+    while `engage` swung thirty-odd times inside those cycles for free. Counting
+    cycles credited none of that; counting actions does."""
+    fake, memory, driver, _ = build()
+    driver.policy = Policy(max_fight_rounds=5)
+    driver.install_tools()
+
+    def model_calls_engage(task):
+        # What the Agent does with a tool the model picked: dispatch it, then
+        # fire after_tool WITHOUT the mechanical marker.
+        result = driver.registry.dispatch("engage", {"target": "fido"})
+        driver.hooks.fire(
+            Hook.AFTER_TOOL,
+            HookPayload(Hook.AFTER_TOOL, context=None, registry=driver.registry,
+                        logger=None, name="engage", args={"target": "fido"},
+                        result=result, ok=True, error=None),
+        )
+        return result
+
+    driver.run_turn = model_calls_engage
+    cycle = driver.step()
+
+    assert cycle.used_model is True, cycle
+    assert cycle.model_actions == 1, f"the model chose ONE thing: {cycle.model_actions}"
+    # Five rounds of attack + check, plus the driver's own state reads.
+    assert cycle.mechanical_actions >= 10, cycle.mechanical_actions
+
+    result = RunResult(cycles=[cycle])
+    assert result.judgment_ratio < 0.15, result.judgment_ratio
+    assert result.cycle_judgment_ratio == 1.0, "the cycle DID need the model"
+
+
+@test
+def a_driver_without_hooks_still_counts_its_own_work():
+    """Counting mechanical actions in _do rather than in the hook handler. If
+    it were counted in the handler, a hookless driver would report every action
+    as the model's -- exactly backwards."""
+    ctx = Context(system="s", context_window=1_000_000)
+    registry = Registry(ctx)
+    mud_tools.register(registry, name="boukensha", password="x", session=FakeSession())
+    registry.dispatch("mud_connect", {})
+    memory = Memory("t", dir=Path(tempfile.mkdtemp()))
+    memory.update_state(level=3, exp=100, exp_to_level=500, hp="5/30", moves="85/85")
+
+    driver = Driver(goal="g", memory=memory, registry=registry,
+                    run_turn=lambda task: "ok", hooks=None)
+    cycle = driver.step()
+    assert cycle.mechanical_actions > 0, cycle
+    assert cycle.model_actions == 0, cycle
 
 
 @test

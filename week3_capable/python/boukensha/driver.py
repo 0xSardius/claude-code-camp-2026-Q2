@@ -77,6 +77,8 @@ class CycleResult:
     used_model: bool                     # did this cycle cost a model call?
     note: str = ""
     assessment: Assessment | None = None
+    mechanical_actions: int = 0          # tool calls the driver made itself
+    model_actions: int = 0               # tool calls the model chose
 
 
 @dataclass
@@ -93,10 +95,40 @@ class RunResult:
         return self.ending_exp - self.starting_exp
 
     @property
+    def mechanical_actions(self):
+        return sum(c.mechanical_actions for c in self.cycles)
+
+    @property
+    def model_actions(self):
+        return sum(c.model_actions for c in self.cycles)
+
+    @property
     def judgment_ratio(self):
-        """Fraction of cycles that needed the model. Week 3's headline metric.
+        """Fraction of ACTIONS that needed the model. Week 3's headline metric.
         A ratio to understand, not to minimise: 0 is the lava-pit walker, 1 is
-        the loop that reasons about standing up."""
+        the loop that reasons about standing up.
+
+        Counted per action, not per cycle, and the difference is not cosmetic.
+        The first live run scored 100% on the cycle version -- all three cycles
+        hunted, so all three called the model -- while `engage` was mechanically
+        swinging thirty-odd times inside them. The number argued against the
+        exact thing the week built. An action is one tool call: the model
+        deciding to fight counts once, and every swing that follows counts on
+        the other side of the ledger, which is what "judgment is amortised over
+        replay" means when you write it down as a number.
+        """
+        total = self.mechanical_actions + self.model_actions
+        if not total:
+            return None
+        return self.model_actions / total
+
+    @property
+    def cycle_judgment_ratio(self):
+        """The same question asked per cycle: how many turns of the loop needed
+        the model at all. Kept because it answers something the action ratio
+        cannot -- a run of 40 cycles that never once needed the model is a very
+        different animal from one that needed it every cycle, even if both do
+        most of their ACTIONS mechanically."""
         if not self.cycles:
             return None
         return sum(1 for c in self.cycles if c.used_model) / len(self.cycles)
@@ -116,6 +148,21 @@ class Driver:
         self.hooks = hooks
         self._resting = 0
         self._no_progress = 0
+        self._mechanical_actions = 0
+        self._model_actions = 0
+        # Model-chosen tool calls are counted where they happen -- in the
+        # Agent -- rather than inferred from the turn's reply text. after_tool
+        # is the one seam both sides pass through, so it is the only place the
+        # two halves of the ledger can be compared honestly.
+        if hooks is not None:
+            hooks.on(Hook.AFTER_TOOL, self._count_model_action)
+
+    def _count_model_action(self, payload):
+        """Every tool call that was NOT ours. The driver marks its own dispatches
+        `mechanical` in _do; anything else reaching this seam is a tool the model
+        chose to call, which is exactly what the metric wants to count."""
+        if not getattr(payload, "mechanical", False):
+            self._model_actions += 1
 
     # ---- assess ----------------------------------------------------------
 
@@ -164,6 +211,7 @@ class Driver:
         down until max_rest_cycles bailed it out. Found on the first dry run.
         """
         ok, error, result = True, None, None
+        self._mechanical_actions += 1
         try:
             result = self.registry.dispatch(tool, args or {})
         except Exception as e:  # noqa: BLE001 -- a dead connection must not end the run
@@ -182,6 +230,11 @@ class Driver:
                     result=result,
                     ok=ok,
                     error=error,
+                    # Marks this side of the ledger. Counted above rather than
+                    # in the hook handler on purpose: a driver built without
+                    # hooks still has to count its own work, or a run with no
+                    # hooks would report every action as the model's.
+                    mechanical=True,
                 ),
             )
         return result
@@ -307,6 +360,20 @@ class Driver:
     # ---- one cycle -------------------------------------------------------
 
     def step(self):
+        """One cycle, with its action counts attached.
+
+        The counting wraps _step rather than living inside it because _step has
+        six return paths and the interesting work happens underneath them --
+        inside `engage`, which the model reaches through a tool call, not
+        through anything _step can see.
+        """
+        before_mech, before_model = self._mechanical_actions, self._model_actions
+        cycle = self._step()
+        cycle.mechanical_actions = self._mechanical_actions - before_mech
+        cycle.model_actions = self._model_actions - before_model
+        return cycle
+
+    def _step(self):
         a = self._ensure_state()
 
         # 1. Recovery. Mechanical: the game states the condition and there is
@@ -414,7 +481,9 @@ class Driver:
             result.cycles.append(cycle)
             if self.logger is not None:
                 self.logger.driver_cycle(
-                    action=cycle.action, used_model=cycle.used_model, note=cycle.note
+                    action=cycle.action, used_model=cycle.used_model, note=cycle.note,
+                    mechanical_actions=cycle.mechanical_actions,
+                    model_actions=cycle.model_actions,
                 )
             if until is not None and until(self.assess()):
                 result.stopped_because = "goal_met"

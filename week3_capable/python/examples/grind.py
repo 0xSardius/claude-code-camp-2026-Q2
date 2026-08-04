@@ -9,7 +9,7 @@ gave it a task, it did that task, it stopped. This runs the Driver over a
 Harness, so one conversation stays alive across many cycles and the loop
 decides what the next task should be.
 
-WHAT IT PRINTS. The judgment ratio -- what fraction of cycles needed a model
+WHAT IT PRINTS. The judgment ratio -- what fraction of ACTIONS needed a model
 call -- is week 3's acceptance number. Read it as a description, not a score to
 minimise: a loop that never reasons walks into the lava pit, and a loop that
 reasons about standing up is wasting money. See
@@ -51,15 +51,23 @@ def report(result, *, dry):
     print(f"stopped because : {result.stopped_because}")
     print(f"cycles          : {len(result.cycles)}")
     ratio = result.judgment_ratio
-    print(f"judgment ratio  : {'n/a' if ratio is None else f'{ratio:.0%}'}"
-          + ("   (dry run -- the model was never called)" if dry else ""))
+    if ratio is None:
+        print("judgment ratio  : n/a — no actions were taken")
+    else:
+        print(f"judgment ratio  : {ratio:.0%} of actions needed the model "
+              f"({result.model_actions} model, {result.mechanical_actions} mechanical)")
+    by_cycle = result.cycle_judgment_ratio
+    if by_cycle is not None:
+        print(f"  by cycle      : {by_cycle:.0%} of cycles needed it at all"
+              + ("   (dry run — the model was stubbed out)" if dry else ""))
     gained = result.experience_gained
     print(f"experience      : {result.starting_exp} -> {result.ending_exp}"
           + (f"  (+{gained})" if gained is not None else ""))
     print()
     for i, c in enumerate(result.cycles, 1):
         kind = "model" if c.used_model else "mechanical"
-        print(f"  {i:>3}. {c.action:<12} {kind:<11} {c.note}")
+        print(f"  {i:>3}. {c.action:<12} {kind:<11} "
+              f"{c.model_actions:>2}m/{c.mechanical_actions:<3} {c.note}")
 
 
 def main():
