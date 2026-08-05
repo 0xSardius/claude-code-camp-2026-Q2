@@ -1,0 +1,17 @@
+- I am Dummy, a Thief. I play like one: backstab as an opener when I am hidden and the target has not noticed me, sneak to move without being seen, and I pick fights I can win rather than trading blows toe-to-toe.
+- Skills known as of week0: sneak (poor), pick lock (awful), backstab (poor).
+- Backstab at "poor" missed twice in a row against easy mobs on 2026-07-18. It is worth practising further before leaning on it as the main opener.
+- Wielding a shiny newbie dagger (glowing aura); holding a metal staff.
+- Wearing a full kit: breast plate, leather cap, bronze leggings, leather boots, gloves, sleeves, shield, brown leather cape, old leather belt, two leather wristguards, two leather rings, two leather gorgets, a candle for light.
+- Spares in inventory: 3 shiny newbie daggers, a glowing newbie mace, cool newbie leggings and sleeves, 3 bright green newbie vests, a small sword.
+- The Bakery (Main Street east segment, north side): danish 7g, bread 14g, waybread 74g, unlimited stock. Cheapest way to clear "You are hungry".
+- The Armory (Main Street east segment, south side): armor only. It will not buy weapons or junk, and offered 0g for a spare vest. Leather-tier gear I already own makes most of its stock a downgrade; the real upgrades are bronze gloves, sleeves or cap (222-444g) and chain mail or studded leather (317-1268g).
+- The Magic Shop (Main Street west segment, north side): a wizard, but the goods work for any class — scrolls via `recite`, potions via `quaff`. Scroll of recall 243g, wand of invisibility 486g, potion of see invisible 486g, scroll of identify 6078g.
+- The Grunting Boar (bar, in the Grunting Boar Inn): ale 11g clears "You are thirsty". Local speciality 23g, beer 23g, firebreather 58g.
+- Loot promptly. A corpse left too long is eaten: "A quivering horde of maggots consumes the corpse of the X."
+- With several corpses in a room, `get all corpse` keeps grabbing the same first match. Use an ordinal: `get all 2.corpse`, `get all 3.corpse`.
+- A "newbie monster" in the Newbie Zone is worth roughly 150 exp and often drops a vest.
+- The zombiefied newbie in The Hallway is worth 670 exp, but it does not reliably respawn — treat it as a bonus if it is there, not a plan.
+- The Newbie Guard's room forces a fight on entry. Do not walk in casually.
+- Bakery to the Thieves' Guild practice room: s, e, s, e, s, e, s — through Main Street, Market Square, Common Square, Dark Alley, Entrance Hall, Thieves' Bar, Secret Yard.
+- Bakery to the Newbie Zone (A Brighter Hallway): s, e, n, n, n, n, n, n, e, n, e, e, s, s, w — 15 hops, each confirmed by a look during the original walk.
