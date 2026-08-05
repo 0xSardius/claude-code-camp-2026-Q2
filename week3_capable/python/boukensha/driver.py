@@ -91,6 +91,7 @@ class RunResult:
     stopped_because: str = ""
     starting_exp: int | None = None
     ending_exp: int | None = None
+    task_summary: str = ""
 
     @property
     def experience_gained(self):
@@ -140,12 +141,17 @@ class RunResult:
 
 class Driver:
     def __init__(self, *, goal, memory, registry, run_turn, policy=None, logger=None,
-                 hooks=None, sleep=None):
+                 hooks=None, sleep=None, task=None):
         # Injectable so the offline tests do not actually wait. Production
         # passes nothing and gets the real clock, which is the only thing that
         # makes resting work -- see the resting branch of _step.
         self._sleep = sleep if sleep is not None else time.sleep
         self.goal = goal
+        # A job handed in by a human, worked on instead of the standing goal
+        # until the model calls task_done. None means "just pursue the goal".
+        self.task = task
+        self._task_done = False
+        self._task_summary = ""
         self.memory = memory
         self.registry = registry
         self.run_turn = run_turn          # callable(task_text) -> str
@@ -491,7 +497,38 @@ class Driver:
             },
             block=self.travel,
         )
+        reg.tool(
+            "task_done",
+            description=(
+                "Declare the task you were given finished, and say what happened. "
+                "Call this ONLY when the job is actually complete, or when it turns "
+                "out to be impossible and you want to say why. You do not need to "
+                "finish inside one turn — the loop will give you more."
+            ),
+            parameters={
+                "summary": {"type": "string",
+                            "description": "What happened, in a sentence or two."},
+            },
+            block=self.finish_task,
+        )
         return self
+
+    def finish_task(self, summary=""):
+        """The model saying it is done.
+
+        A TOOL rather than a phrase the driver looks for in the reply. Matching
+        text would mean inventing a sentinel the model has to reproduce exactly,
+        and this codebase has already been bitten once by treating a short
+        string as a reliable end-marker -- the `"> "` prompt that also appears
+        mid-output (see mud_session.read_until_prompt). A tool call is
+        unambiguous, and it cannot be said by accident while narrating.
+        """
+        if not self.task:
+            return ("There is no task in front of you right now — you are working "
+                    "the standing goal. Nothing to finish.")
+        self._task_done = True
+        self._task_summary = str(summary or "").strip()
+        return f"Task closed: {self._task_summary or '(no summary given)'}"
 
     def _ensure_state(self):
         """Learn our own vitals if we do not know them yet.
@@ -563,24 +600,113 @@ class Driver:
             self._do("set_position", {"position": "rest"})
             return CycleResult("resting", False, why, a)
 
-        # 2. Level available -> go train. WHICH skill to practise is a
-        #    judgment (it depends on playstyle and what the character lacks),
-        #    so the model gets that turn.
-        if a.exp_to_level is not None and a.exp_to_level <= 0:
-            self.run_turn(
-                "You have enough experience to gain a level. Go to your guild and "
-                "practise. Choose which skill to improve based on how you actually "
-                "play — you are a thief, so backstab, sneak and hide matter more "
-                "than raw melee. Report what you trained and why."
-            )
-            return CycleResult("trained", True, "level available", a)
-
-        # 3. Otherwise: hunt. What is safe to attack is a real judgment -- it
-        #    depends on `consider`, on current health, and on what past fights
-        #    taught us. That is what the model is for.
-        self.run_turn(self._hunt_task(a))
+        # 2. Everything else is a task, and choosing which one is the driver's
+        #    own judgment -- the cheap kind, made from state it already has.
+        mode, task = self._next_task(a)
+        self.run_turn(task)
         progressed = self._check_progress(a)
-        return CycleResult("hunted", True, "progress" if progressed else "no progress", a)
+        note = "progress" if progressed else "no progress"
+        if self._task_done:
+            note = "task done"
+        return CycleResult(mode, True, note, a)
+
+    # ---- choosing what to do ---------------------------------------------
+
+    def _next_task(self, a):
+        """Pick the mode this cycle calls for, and build the turn for it.
+
+        THIS IS THE GOAL DECOMPOSITION. Before it, the driver only knew how to
+        hunt: every goal string got interpolated into a combat prompt, so
+        "go buy a weapon" produced a turn telling the model to find something to
+        kill. That made the loop a grinder rather than something you can point
+        at a job.
+
+        The split is the same one the whole week runs on. WHICH mode applies is
+        decided here, mechanically, from state the driver already has -- no
+        model call, because "you have enough experience to level" is a fact, not
+        a judgment. What to DO inside the mode is the model's, because which
+        skill to practise or what is safe to fight genuinely depends on how this
+        character plays.
+
+        A human-given task outranks the standing goal but not levelling: a level
+        waiting to be claimed is free power, and it makes every later task
+        easier, so it is worth the one detour first.
+        """
+        if a.exp_to_level is not None and a.exp_to_level <= 0:
+            return "trained", self._train_task(a)
+        if self.task and not self._task_done:
+            return "task", self._given_task(a)
+        return "hunted", self._hunt_task(a)
+
+    def _preamble(self, a):
+        """What is true right now, in front of every task.
+
+        Repeated per turn on purpose. The conversation persists across cycles,
+        so the model can see what it did before -- but health and position move
+        underneath it between turns, and a turn that plans around remembered
+        vitals plans around stale ones.
+        """
+        where = f"You are in {a.room}. " if a.room else ""
+        health = "" if a.health is None else f"Health {a.health:.0%}. "
+        return f"{where}{health}"
+
+    def _tooling_note(self):
+        """The mechanical routines, described once, for any task.
+
+        Every task needs to know these exist, or the model spends its turn
+        calling `move` and `attack` one at a time -- which is what the first
+        live run did, filling its whole budget with work that had no decision
+        in it.
+        """
+        return (
+            "- `travel` walks a whole route you already know, in one call. Do not "
+            "call `move` step by step for a route you know. If it says the place or "
+            "the route is unknown, that is real — explore deliberately.\n"
+            "- `engage` fights a target to a conclusion in one call, and breaks off "
+            "if your health drops. Do not call `attack` in a loop.\n"
+            "- `recall` reads what you already know before you go looking. Your notes "
+            "carry knowledge from earlier sessions — treat them as claims worth "
+            "checking, not gospel.\n"
+            "- `remember_learning` records anything that surprised you, so the next "
+            "session starts ahead of this one.\n"
+        )
+
+    def _given_task(self, a):
+        """A job handed to the loop by a human.
+
+        Deliberately thin. The point is NOT to translate the request into game
+        commands -- that is the model's job and it is better at it than any
+        phrasing rules we would write. The driver's contribution is the frame:
+        what is true now, what the mechanical tools are, and how to say you are
+        finished. Everything else is the human's words, passed through.
+        """
+        return (
+            f"TASK: {self.task}\n\n"
+            f"{self._preamble(a)}Work on this task. It is the whole job for this "
+            f"turn — the standing goal ({self.goal}) can wait.\n\n"
+            f"{self._tooling_note()}"
+            "- When the task is genuinely finished, call `task_done` with a short "
+            "summary of what happened. Do not call it early — the loop will keep "
+            "giving you turns, so an unfinished job is fine to continue next turn.\n"
+            "- If the task turns out to be impossible, or needs something you do not "
+            "have, call `task_done` and say so plainly. Being stuck is a real answer "
+            "and a better one than pretending.\n\n"
+            "Play in character: you are a thief. Prefer stealth, openers and picking "
+            "your fights over trading blows.\n\n"
+            "The loop around you handles resting and recovery between turns, so do "
+            "not sit and wait for health."
+        )
+
+    def _train_task(self, a):
+        return (
+            f"{self._preamble(a)}You have enough experience to gain a level. Go to "
+            "your guild and practise.\n\n"
+            f"{self._tooling_note()}"
+            "- Choose which skill to improve based on how you actually play — you are "
+            "a thief, so backstab, sneak and hide matter more than raw melee. Your "
+            "notes may say what is already practised and how well it works.\n"
+            "- Report what you trained and why."
+        )
 
     def _hunt_task(self, a):
         """The turn we hand to the model.
@@ -669,6 +795,13 @@ class Driver:
                     mechanical_actions=cycle.mechanical_actions,
                     model_actions=cycle.model_actions,
                 )
+            # A finished task ends the run. Without this the loop would notice
+            # only via the stall counter, three wasted turns later, after handing
+            # the model a job it had already reported complete.
+            if self._task_done:
+                result.stopped_because = "task_done"
+                result.task_summary = self._task_summary
+                break
             if until is not None and until(self.assess()):
                 result.stopped_because = "goal_met"
                 break

@@ -237,7 +237,7 @@ class Harness:
         except (LoopError, ApiError) as e:
             return f"[error] {type(e).__name__}: {e}"
 
-    def driver(self, *, goal, policy=None):
+    def driver(self, *, goal, policy=None, task=None):
         """A Driver wired to this harness. Needs memory -- the driver assesses
         state by reading it, so a harness built with memory=False has nothing
         to decide from."""
@@ -245,7 +245,7 @@ class Harness:
             raise ValueError("driver() needs memory; build the harness with memory=<character>")
         d = Driver(goal=goal, memory=self.memory, registry=self.registry,
                    run_turn=self.run_turn, policy=policy, logger=self.logger,
-                   hooks=self.hooks)
+                   hooks=self.hooks, task=task)
         # The driver's mechanical routines become tools the model can call, so
         # a whole fight costs one model call instead of one per swing.
         return d.install_tools()

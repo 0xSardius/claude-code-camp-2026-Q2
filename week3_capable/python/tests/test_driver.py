@@ -442,6 +442,85 @@ def the_task_tells_the_model_the_policy_it_is_actually_run_under():
     assert "35%" not in task, "a hardcoded number survived the retune"
 
 
+# ---- an arbitrary task from a human ----------------------------------------
+
+@test
+def a_human_task_replaces_the_hunt():
+    """Before this the driver only knew how to hunt, so 'go buy a weapon'
+    became a turn telling the model to find something to kill. A loop you
+    cannot point at a job is a grinder, not an agent."""
+    _, _, driver, turns = build()
+    driver.task = "Go to the Armory and buy a weapon you can actually use."
+    driver.step()
+    assert "TASK: Go to the Armory" in turns[0], turns[0][:200]
+    assert "find one thing worth fighting" not in turns[0].lower(), "it hunted anyway"
+
+
+@test
+def the_task_turn_carries_the_mechanical_tools():
+    """Any task needs to know travel and engage exist, or the model spends the
+    turn calling move and attack one at a time -- which is exactly what the
+    first live run did."""
+    _, _, driver, turns = build()
+    driver.task = "Find the bakery and buy bread."
+    driver.step()
+    assert "`travel`" in turns[0] and "`engage`" in turns[0], turns[0]
+    assert "thief" in turns[0].lower(), "it should still play in character"
+
+
+@test
+def finishing_the_task_ends_the_run():
+    """Done is a TOOL CALL, not a phrase in the reply. Matching text would mean
+    inventing a sentinel the model has to reproduce exactly, and this codebase
+    has already been bitten by treating a short string as an end-marker."""
+    _, _, driver, _ = build()
+    driver.task = "Say hello to the shopkeeper."
+    driver.install_tools()
+
+    def finish_on_second_turn(task):
+        if driver._task_done is False and len(driver.cycles_seen) >= 1:
+            driver.registry.dispatch("task_done", {"summary": "Said hello."})
+        driver.cycles_seen.append(1)
+        return "ok"
+
+    driver.cycles_seen = []
+    driver.run_turn = finish_on_second_turn
+    result = driver.run(max_cycles=6)
+    assert result.stopped_because == "task_done", result.stopped_because
+    assert result.task_summary == "Said hello.", result.task_summary
+    assert len(result.cycles) == 2, f"it kept going after done: {len(result.cycles)}"
+
+
+@test
+def a_waiting_level_outranks_the_task():
+    """A level sitting unclaimed is free power that makes every later task
+    easier, so it is worth the one detour first."""
+    _, _, driver, turns = build(exp_to_level=0)
+    driver.task = "Go and buy bread."
+    cycle = driver.step()
+    assert cycle.action == "trained", cycle
+    assert "gain a level" in turns[0], turns[0][:150]
+
+
+@test
+def no_task_still_hunts():
+    """The standing behaviour has to survive the new layer."""
+    _, _, driver, turns = build()
+    cycle = driver.step()
+    assert cycle.action == "hunted", cycle
+    assert "worth fighting" in turns[0].lower(), turns[0][:150]
+
+
+@test
+def declaring_done_with_no_task_is_refused():
+    """Otherwise a stray call during a normal grind silently ends the run."""
+    _, _, driver, _ = build()
+    driver.install_tools()
+    out = driver.registry.dispatch("task_done", {"summary": "nothing"})
+    assert "no task" in out.lower(), out
+    assert driver._task_done is False
+
+
 # ---- the recover half ------------------------------------------------------
 
 @test

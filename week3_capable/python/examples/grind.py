@@ -63,6 +63,8 @@ def report(result, *, dry):
     gained = result.experience_gained
     print(f"experience      : {result.starting_exp} -> {result.ending_exp}"
           + (f"  (+{gained})" if gained is not None else ""))
+    if result.task_summary:
+        print(f"task result     : {result.task_summary}")
     print()
     for i, c in enumerate(result.cycles, 1):
         kind = "model" if c.used_model else "mechanical"
@@ -73,6 +75,10 @@ def report(result, *, dry):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--goal", default="gain experience and reach the next level")
+    ap.add_argument("--task", default=None,
+                    help="a specific job to do instead of grinding, in your own "
+                         "words, e.g. \"go to the Armory and buy a better weapon\". "
+                         "The run ends when the agent reports it finished.")
     ap.add_argument("--cycles", type=int, default=6)
     ap.add_argument("--dry-run", action="store_true",
                     help="offline: fake connection, stub model. Proves the wiring "
@@ -107,6 +113,8 @@ def main():
     print(f"character  : {char['name']}    model: {'(none, dry run)' if args.dry_run else cfg.model}")
     print(f"memory     : {len(mem.rooms())} rooms, {len(mem._map()['edges'])} routes")
     print(f"goal       : {args.goal}")
+    if args.task:
+        print(f"task       : {args.task}")
     print(f"log        : {log.name}")
     print("-" * 72)
 
@@ -116,7 +124,7 @@ def main():
     )
     try:
         h.registry.dispatch("mud_connect", {})
-        driver = h.driver(goal=args.goal, policy=Policy())
+        driver = h.driver(goal=args.goal, policy=Policy(), task=args.task)
 
         if args.dry_run:
             # Stub the model out entirely. Every cycle this run classifies as
