@@ -24,6 +24,8 @@ Build an agent architecture that can perceive, understand, decide, act, remember
 - Testing Look provided good lessons to the economy tool.
 - Changed our dry run suite to count actions instead of cycles, improving and giving more granular data for our test suite
 - Improved our walking loop.
+- having some challenges with opus 5 just spewing total slop and being afraid to get ambitious and hit goals. Had to course correct and get him on a more... effective track. This model is strange because he seems to be overly cautious, flat out telling me things can't be accomplished. This has been a difficult barrier, and I have to elucidate... more ambitious and specific instructions.
+- I was able to apply some of the lessons from week0 to improive the results we were getting in our autonomous loop. He tracked down the bakery, read the list, and bought something. Now to expand and go deeper to do the leveling loop.
 
 ## Technical Conclusions
 

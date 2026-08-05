@@ -3,13 +3,12 @@
   "exp_to_level": 1709,
   "gold": 30,
   "hp": "15/25",
-  "hp_now": 15,
+  "hp_now": 30,
   "level": 1,
   "mana": "100/100",
   "moves": "85/85",
   "moves_now": 85,
-  "position": "poor alley#94ced5",
   "position_state": "resting",
   "title": "Boukensha the Swordpupil",
-  "updated_at": "2026-08-04T19:54:51-04:00"
+  "updated_at": "2026-08-04T20:28:43-04:00"
 }
