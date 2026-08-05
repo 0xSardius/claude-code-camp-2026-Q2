@@ -1,0 +1,93 @@
+{
+  "edges": [
+    [
+      "main street#9081dc",
+      "east",
+      "inside the east gate of midgaard#92eae4"
+    ],
+    [
+      "inside the east gate of midgaard#92eae4",
+      "west",
+      "main street#9081dc"
+    ],
+    [
+      "main street#9081dc",
+      "west",
+      "market square#9081dc"
+    ],
+    [
+      "market square#9081dc",
+      "east",
+      "main street#9081dc"
+    ],
+    [
+      "main street#9081dc",
+      "north",
+      "the general store#7e3fb5"
+    ],
+    [
+      "the general store#7e3fb5",
+      "south",
+      "main street#9081dc"
+    ],
+    [
+      "market square#9081dc",
+      "west",
+      "main street#9081dc"
+    ],
+    [
+      "main street#9081dc",
+      "north",
+      "the bakery#7e3fb5"
+    ]
+  ],
+  "rooms": {
+    "inside the east gate of midgaard#92eae4": {
+      "description": "You are by two small towers that have been built into the city wall and connected with a footbridge across the heavy wooden gate.  Main Street leads west from here.  To the south you see the Water Shop.",
+      "exits": [
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "Inside The East Gate Of Midgaard"
+    },
+    "main street#9081dc": {
+      "description": "You are on the main street crossing through town.  To the north is the general store, and the main street continues east.  To the west you see and hear the market place, to the south a small door leads into the Pet Shop.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "Main Street"
+    },
+    "market square#9081dc": {
+      "description": "You are standing on the market square, the famous Square of Midgaard. A large, peculiar looking statue is standing in the middle of the square. Roads lead in every direction, north to the temple square, south to the common square, east and westbound is the main street.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "Market Square"
+    },
+    "the bakery#7e3fb5": {
+      "description": "You are standing inside the small bakery.  A sweet scent of danish and fine bread fills the room.  The bread and Danish are arranged in fine order on the shelves, and seem to be of the finest quality. A small sign is on the counter.",
+      "exits": [
+        "south"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "The Bakery"
+    },
+    "the general store#7e3fb5": {
+      "description": "You are inside the general store.  All sorts of items are stacked on shelves behind the counter, safely out of your reach. A small note hangs on the wall.",
+      "exits": [
+        "south"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "The General Store"
+    }
+  }
+}

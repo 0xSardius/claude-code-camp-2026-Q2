@@ -1,3 +1,18 @@
+# dummy
+
+_Generated 2026-08-04 from recorded state. Numbers in this section are rendered from the store, not written by the agent._
+
+## Status
+- **Level:** 4
+- **HP:** 57/57
+- **Experience:** 7119
+- **Gold:** 346
+- **Last seen:** The Bakery
+- **Rooms known:** 5
+- **Routes walked:** 8
+
+## What it knows
+
 - I am Dummy, a Thief. I play like one: backstab as an opener when I am hidden and the target has not noticed me, sneak to move without being seen, and I pick fights I can win rather than trading blows toe-to-toe.
 - Skills known as of week0: sneak (poor), pick lock (awful), backstab (poor).
 - Backstab at "poor" missed twice in a row against easy mobs on 2026-07-18. It is worth practising further before leaning on it as the main opener.
@@ -16,3 +31,7 @@
 - Bakery to the Thieves' Guild practice room: s, e, s, e, s, e, s — through Main Street, Market Square, Common Square, Dark Alley, Entrance Hall, Thieves' Bar, Secret Yard.
 - Bakery to the Newbie Zone (A Brighter Hallway): s, e, n, n, n, n, n, n, e, n, e, e, s, s, w — 15 hops, each confirmed by a look during the original walk.
 - Route to the Bakery from Market Square: from Market Square go west to a Main Street room ('South of here is the entrance to the Armory, and the bakery is to the north'), then north into The Bakery. This is a DIFFERENT Main Street segment than the one east of Market Square (which has the general store and pet shop).
+
+## What it has learned
+
+- [2026-08-04] There are multiple rooms all named 'Main Street' in Midgaard forming a strip around Market Square; don't assume the first one you see is the right segment for a remembered route. Check the room description text (it names the specific nearby shops) to disambiguate before traveling by feel.

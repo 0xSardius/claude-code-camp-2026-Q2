@@ -399,6 +399,42 @@ def resting_waits_for_the_game_clock():
 
 
 @test
+def recovery_does_not_spend_the_work_budget():
+    """max_cycles budgets turns of WORK. The first task run on `dummy` began at
+    3/93 movement from a session weeks earlier, correctly decided to rest, and
+    spent all six cycles doing it without ever reading the task it was given."""
+    fake, memory, driver, turns = build(hp="4/30", moves="2/85")
+    fake.hp, fake.moves = 4, 2
+    result = driver.run(max_cycles=2)
+
+    worked = [c for c in result.cycles if c.used_model]
+    rested = [c for c in result.cycles if not c.used_model]
+    assert len(rested) > 0, "the test needs it to actually rest"
+    assert len(result.cycles) > 2, f"resting ate the budget again: {result.cycles}"
+    assert len(worked) <= 2, f"it overspent the budget: {len(worked)}"
+
+
+@test
+def a_run_that_never_gets_to_work_says_so():
+    """Stopping because you never recovered is a different outcome from
+    stopping because you did the work you paid for."""
+    fake, memory, driver, _ = build(hp="1/30", moves="1/85")
+    fake.hp, fake.moves = 1, 1
+    driver.policy = Policy(max_rest_cycles=2, resume_above_health=0.99,
+                           resume_above_movement=0.99)
+
+    def never_helps(tool, args=None):
+        fake.hp, fake.moves = 1, 1          # nothing ever heals
+        return "ok"
+
+    driver._do = never_helps
+    driver.run_turn = lambda t: "ok"
+    result = driver.run(max_cycles=1)
+    assert result.stopped_because in ("stuck_recovering", "stalled", "max_cycles"), \
+        result.stopped_because
+
+
+@test
 def a_dead_turn_at_full_health_does_not_rest():
     """Resting is the response to being unfit to try again, not to failure as
     such. An agent at full health in a room with nothing to fight must keep

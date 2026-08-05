@@ -786,8 +786,22 @@ class Driver:
         # figure yet, and a starting value of None makes experience_gained
         # unreportable for the whole run.
         result = RunResult(starting_exp=self._ensure_state().exp)
-        for _ in range(max_cycles):
+        # max_cycles budgets TURNS OF WORK, not wall-clock ticks. Recovery is
+        # overhead: it costs no model call, and counting it here means a
+        # character that starts tired spends its whole budget sitting down. The
+        # first task run on `dummy` did exactly that -- it began at 3/93
+        # movement from a session weeks earlier, correctly decided to rest, and
+        # used all six cycles doing it without ever reading the task.
+        #
+        # The hard cap is the backstop: recovery is bounded by max_rest_cycles,
+        # but a loop that rests, stands, fails, and rests again would otherwise
+        # have nothing stopping it.
+        budget, performed, hard_cap = max_cycles, 0, max_cycles * 4
+        while budget > 0 and performed < hard_cap:
             cycle = self.step()
+            performed += 1
+            if cycle.used_model:
+                budget -= 1
             result.cycles.append(cycle)
             if self.logger is not None:
                 self.logger.driver_cycle(
@@ -809,6 +823,8 @@ class Driver:
                 result.stopped_because = "stalled"
                 break
         else:
-            result.stopped_because = "max_cycles"
+            # Distinguish "did the work we paid for" from "never got to work".
+            # Both end the run, but only one of them is a healthy finish.
+            result.stopped_because = "max_cycles" if budget <= 0 else "stuck_recovering"
         result.ending_exp = self.assess().exp
         return result
