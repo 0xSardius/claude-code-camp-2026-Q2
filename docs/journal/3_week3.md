@@ -26,8 +26,13 @@ Build an agent architecture that can perceive, understand, decide, act, remember
 - Improved our walking loop.
 - having some challenges with opus 5 just spewing total slop and being afraid to get ambitious and hit goals. Had to course correct and get him on a more... effective track. This model is strange because he seems to be overly cautious, flat out telling me things can't be accomplished. This has been a difficult barrier, and I have to elucidate... more ambitious and specific instructions.
 - I was able to apply some of the lessons from week0 to improive the results we were getting in our autonomous loop. He tracked down the bakery, read the list, and bought something. Now to expand and go deeper to do the leveling loop.
+- Discovered some errors where resting did nothing but repetitive checking every 3 seconds, burning tokens. Now the loop actually waits 20 seconds between checks, for better observability and recovery.
+- RThe loop can be given a real job, and any task in plain english, will report finished by calling a tool to report
+- We utilized some of the lessons we gained in week0 from training duymmy in the early loop into memory that helped create a framework for future agentic memory.
+- We found a bug in the way we were building maps and memory, and then buidl a rewrite around ti.
 
 ## Technical Conclusions
+- It required significant rigor to get claude to stop assuming things it believed to be true, and then actually verifying them and building systems around them.
 
 
 ## Key Takeaway
