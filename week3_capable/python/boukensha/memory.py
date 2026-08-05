@@ -81,16 +81,44 @@ class Memory:
     # ---- room identity ---------------------------------------------------
 
     @classmethod
-    def room_key(cls, name, exits=()):
-        """Stable-ish identifier for a room: normalized name + a short hash of
-        its sorted exits. Names alone collide constantly in tbaMUD."""
+    def room_key(cls, name, exits=(), description=None):
+        """Identifier for a room: normalized name + a short hash of its
+        DESCRIPTION. Names alone collide constantly in tbaMUD.
+
+        WHY THE DESCRIPTION AND NOT THE EXITS, which is what this used to hash.
+        Measured against the captured corpus (tests/fixtures/corpus.jsonl, 23
+        distinct room names), the two disagree in both directions:
+
+          Main Street        3 descriptions, 1 exit set -- three different
+                             street segments collapsing onto ONE key
+          Another Corner     1 description, 2 exit sets -- one real room split
+                             across TWO keys
+
+        So exits both over- and under-merge, and the description does neither:
+        only 2 of 23 names carry more than one description, and both of those
+        are genuinely more than one room (the two Great Field tiles).
+
+        The collision was not theoretical. Walking `dummy` to the Bakery on
+        2026-08-04 produced a map claiming north from Main Street led to both
+        the general store AND the bakery, because two street segments shared a
+        key. The agent noticed before we did and wrote it in its own learnings:
+        check the description, it names the nearby shops.
+
+        The exits stay recorded on the room, they just no longer decide its
+        identity -- what a room IS does not change because a door shut.
+        """
         clean = re.sub(r"\s+", " ", str(name or "").strip()).lower()
         if not clean:
             return ""
-        norm_exits = sorted({str(e).strip().lower() for e in (exits or ()) if str(e).strip()})
-        if not norm_exits:
+        desc = re.sub(r"\s+", " ", str(description or "").strip()).lower()
+        if not desc:
+            # No description to go on -- a dark room, or a reply we could only
+            # half-read. Fall back to the bare name rather than inventing a
+            # discriminator: merging two rooms is recoverable, and a key that
+            # changes once the description IS seen would strand every edge
+            # already recorded under it.
             return clean
-        digest = hashlib.sha1(",".join(norm_exits).encode("utf-8")).hexdigest()[:6]
+        digest = hashlib.sha1(desc.encode("utf-8")).hexdigest()[:6]
         return f"{clean}#{digest}"
 
     # ---- low-level file helpers ------------------------------------------
@@ -270,12 +298,12 @@ class Memory:
     def rooms(self):
         return self._map()["rooms"]
 
-    def knows_room(self, name, exits=()):
-        return self.room_key(name, exits) in self._map()["rooms"]
+    def knows_room(self, name, exits=(), description=None):
+        return self.room_key(name, exits, description) in self._map()["rooms"]
 
     def remember_room(self, name, exits=(), description=None):
         """Record a room. Returns its key. Idempotent."""
-        key = self.room_key(name, exits)
+        key = self.room_key(name, exits, description)
         if not key:
             return ""
         m = self._map()

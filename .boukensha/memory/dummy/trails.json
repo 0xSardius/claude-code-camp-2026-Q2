@@ -1,48 +1,68 @@
 {
   "edges": [
     [
-      "main street#9081dc",
-      "east",
-      "inside the east gate of midgaard#92eae4"
-    ],
-    [
-      "inside the east gate of midgaard#92eae4",
-      "west",
-      "main street#9081dc"
-    ],
-    [
-      "main street#9081dc",
-      "west",
-      "market square#9081dc"
-    ],
-    [
-      "market square#9081dc",
-      "east",
-      "main street#9081dc"
-    ],
-    [
-      "main street#9081dc",
-      "north",
-      "the general store#7e3fb5"
-    ],
-    [
-      "the general store#7e3fb5",
+      "the bakery#4e727c",
       "south",
-      "main street#9081dc"
+      "main street#7f015c"
     ],
     [
-      "market square#9081dc",
+      "main street#7f015c",
+      "east",
+      "market square#dbd60f"
+    ],
+    [
+      "market square#dbd60f",
+      "east",
+      "main street#357dee"
+    ],
+    [
+      "main street#357dee",
+      "east",
+      "main street#826a8c"
+    ],
+    [
+      "main street#826a8c",
+      "east",
+      "inside the east gate of midgaard#7ec43f"
+    ],
+    [
+      "inside the east gate of midgaard#7ec43f",
       "west",
-      "main street#9081dc"
+      "main street#826a8c"
     ],
     [
-      "main street#9081dc",
+      "main street#826a8c",
+      "west",
+      "main street#357dee"
+    ],
+    [
+      "main street#357dee",
+      "west",
+      "market square#dbd60f"
+    ],
+    [
+      "market square#dbd60f",
+      "west",
+      "main street#7f015c"
+    ],
+    [
+      "main street#7f015c",
+      "west",
+      "main street#b96828"
+    ],
+    [
+      "main street#b96828",
+      "east",
+      "main street#7f015c"
+    ],
+    [
+      "main street#7f015c",
       "north",
-      "the bakery#7e3fb5"
+      "the bakery#4e727c"
     ]
   ],
   "rooms": {
-    "inside the east gate of midgaard#92eae4": {
+    "inside the east gate of midgaard#7ec43f": {
       "description": "You are by two small towers that have been built into the city wall and connected with a footbridge across the heavy wooden gate.  Main Street leads west from here.  To the south you see the Water Shop.",
       "exits": [
         "south",
@@ -51,7 +71,7 @@
       "first_seen": "2026-08-04",
       "name": "Inside The East Gate Of Midgaard"
     },
-    "main street#9081dc": {
+    "main street#357dee": {
       "description": "You are on the main street crossing through town.  To the north is the general store, and the main street continues east.  To the west you see and hear the market place, to the south a small door leads into the Pet Shop.",
       "exits": [
         "east",
@@ -62,7 +82,40 @@
       "first_seen": "2026-08-04",
       "name": "Main Street"
     },
-    "market square#9081dc": {
+    "main street#7f015c": {
+      "description": "You are on the main street passing through the City of Midgaard.  South of here is the entrance to the Armory, and the bakery is to the north.  East of here is the market square.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "Main Street"
+    },
+    "main street#826a8c": {
+      "description": "The main street, to the north is the weapon shop and to the south is the Guild of Swordsmen.  To the east you leave town and to the west the street leads to the market square.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "Main Street"
+    },
+    "main street#b96828": {
+      "description": "You are at the end of the main street of Midgaard.  South of here is the entrance to the Guild of Magic Users.  The street continues east towards the market square.  The magic shop is to the north and to the west is the city gate.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-04",
+      "name": "Main Street"
+    },
+    "market square#dbd60f": {
       "description": "You are standing on the market square, the famous Square of Midgaard. A large, peculiar looking statue is standing in the middle of the square. Roads lead in every direction, north to the temple square, south to the common square, east and westbound is the main street.",
       "exits": [
         "east",
@@ -73,21 +126,13 @@
       "first_seen": "2026-08-04",
       "name": "Market Square"
     },
-    "the bakery#7e3fb5": {
+    "the bakery#4e727c": {
       "description": "You are standing inside the small bakery.  A sweet scent of danish and fine bread fills the room.  The bread and Danish are arranged in fine order on the shelves, and seem to be of the finest quality. A small sign is on the counter.",
       "exits": [
         "south"
       ],
       "first_seen": "2026-08-04",
       "name": "The Bakery"
-    },
-    "the general store#7e3fb5": {
-      "description": "You are inside the general store.  All sorts of items are stacked on shelves behind the counter, safely out of your reach. A small note hangs on the wall.",
-      "exits": [
-        "south"
-      ],
-      "first_seen": "2026-08-04",
-      "name": "The General Store"
     }
   }
 }

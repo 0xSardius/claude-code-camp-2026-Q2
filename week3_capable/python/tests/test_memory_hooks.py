@@ -129,8 +129,12 @@ def walking_into_a_room_records_it_without_being_asked():
     MemoryHooks(mem).install(hooks)
     fire_tool(hooks, "look", {}, LOOK)
     assert len(mem.rooms()) == 1
-    assert mem.position == Memory.room_key("The Temple Of Midgaard",
-                                           ["down", "east", "north", "south", "west"])
+    # Compared against what was stored rather than a key rebuilt here from
+    # name and exits: the key is derived from the DESCRIPTION now, and a test
+    # that recomputes it is really just testing room_key against itself.
+    (key, room), = mem.rooms().items()
+    assert mem.position == key, (mem.position, key)
+    assert room["name"] == "The Temple Of Midgaard", room
 
 
 @test

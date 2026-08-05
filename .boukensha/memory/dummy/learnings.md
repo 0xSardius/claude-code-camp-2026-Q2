@@ -1,1 +1,2 @@
 - [2026-08-04] There are multiple rooms all named 'Main Street' in Midgaard forming a strip around Market Square; don't assume the first one you see is the right segment for a remembered route. Check the room description text (it names the specific nearby shops) to disambiguate before traveling by feel.
+- [2026-08-04] Mapping trips work well by just using move + look each step without engaging any mobs seen along the way (fidos, gelatinous blob, cityguards) — none of them aggro on simple passage through.

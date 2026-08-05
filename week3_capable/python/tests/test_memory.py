@@ -58,14 +58,20 @@ def unusable_character_names_are_rejected():
 
 @test
 def room_names_alone_do_not_identify_a_room():
-    """tbaMUD reuses names -- 'A Dark Alley' recurs. Two rooms sharing a name
-    but not exits must not collapse into one, or the map corrupts silently."""
-    a = Memory.room_key("A Dark Alley", ["north", "south"])
-    b = Memory.room_key("A Dark Alley", ["east", "west"])
+    """tbaMUD reuses names -- 'A Dark Alley' recurs, and the corpus has three
+    different 'Main Street' segments. Two rooms sharing a name must not
+    collapse into one, or the map corrupts silently: walking `dummy` to the
+    Bakery produced a map claiming north from Main Street led to both the
+    general store and the bakery."""
+    a = Memory.room_key("A Dark Alley", ["north", "south"], "Rubbish everywhere.")
+    b = Memory.room_key("A Dark Alley", ["north", "south"], "A clean, quiet alley.")
     assert a != b, (a, b)
-    # ...but the same room seen twice, exits in any order, is the same key.
-    assert Memory.room_key("A Dark Alley", ["south", "north"]) == a
-    assert Memory.room_key("  a dark ALLEY ", ["North", "South"]) == a
+
+    # The same room seen twice is one key, whatever the exits looked like that
+    # time. Exits are NOT identity -- the corpus has one 'Another Corner' whose
+    # exits parsed two different ways, and it is one room.
+    assert Memory.room_key("A Dark Alley", ["south"], "Rubbish everywhere.") == a
+    assert Memory.room_key("  a dark ALLEY ", [], "  RUBBISH   everywhere. ") == a
 
 
 # --------------------------------------------------------------------------
@@ -185,12 +191,30 @@ def learnings_are_dated_and_appended():
 @test
 def remembering_a_room_is_idempotent():
     m = store()
-    k1 = m.remember_room("Temple Square", ["north", "east"])
+    k1 = m.remember_room("Temple Square", ["north", "east"], description="A big square.")
     k2 = m.remember_room("Temple Square", ["east", "north"], description="A big square.")
     assert k1 == k2
     assert len(m.rooms()) == 1
-    assert m.knows_room("Temple Square", ["north", "east"])
-    assert not m.knows_room("Somewhere Else", [])
+    assert m.knows_room("Temple Square", ["north", "east"], "A big square.")
+    assert not m.knows_room("Somewhere Else", [], "Elsewhere.")
+
+
+@test
+def a_room_first_seen_without_a_description_is_rekeyed_when_it_is_read():
+    """The known cost of keying on the description. A room we could not read --
+    an unlit one -- falls back to its bare name, and gets its real key once we
+    see it properly. Edges recorded under the nameless key are then orphaned.
+
+    Left this way deliberately: the alternative is a key that never improves,
+    so every unlit room merges with every other room of that name forever. An
+    orphaned edge costs one re-walk; a permanently merged room corrupts every
+    route through it."""
+    m = store()
+    dark = m.remember_room("Temple Square", ["north"])
+    lit = m.remember_room("Temple Square", ["north"], description="A big square.")
+    assert dark != lit, (dark, lit)
+    assert dark == "temple square", dark          # bare name, no discriminator
+    assert "#" in lit
 
 
 @test

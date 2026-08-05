@@ -6,10 +6,10 @@ _Generated 2026-08-04 from recorded state. Numbers in this section are rendered 
 - **Level:** 4
 - **HP:** 57/57
 - **Experience:** 7119
-- **Gold:** 346
+- **Gold:** 332
 - **Last seen:** The Bakery
-- **Rooms known:** 5
-- **Routes walked:** 8
+- **Rooms known:** 7
+- **Routes walked:** 12
 
 ## What it knows
 
@@ -31,7 +31,10 @@ _Generated 2026-08-04 from recorded state. Numbers in this section are rendered 
 - Bakery to the Thieves' Guild practice room: s, e, s, e, s, e, s — through Main Street, Market Square, Common Square, Dark Alley, Entrance Hall, Thieves' Bar, Secret Yard.
 - Bakery to the Newbie Zone (A Brighter Hallway): s, e, n, n, n, n, n, n, e, n, e, e, s, s, w — 15 hops, each confirmed by a look during the original walk.
 - Route to the Bakery from Market Square: from Market Square go west to a Main Street room ('South of here is the entrance to the Armory, and the bakery is to the north'), then north into The Bakery. This is a DIFFERENT Main Street segment than the one east of Market Square (which has the general store and pet shop).
+- Main Street east of the Bakery/Armory runs through Market Square, then a segment with general store/pet shop, then a segment with weapon shop/Guild of Swordsmen, ending at Inside The East Gate of Midgaard (city gate, usually closed, guarded by two cityguards). That gate is the eastern terminus of Main Street — cannot go further east while it's closed.
+- Main Street is a single continuous strip of 5 rooms between two gates: West Gate segment (Guild of Magic Users south, Magic Shop north, city gate west) -- Armory/Bakery segment (Armory south, Bakery north) -- Market Square (hub, n=temple square, s=common square) -- General Store/Pet Shop segment (store north, pet shop south) -- Weapon Shop/Guild of Swordsmen segment (shop north, guild south, fidos often here) -- Inside The East Gate of Midgaard (Water Shop south, two cityguards, east gate usually closed).
 
 ## What it has learned
 
 - [2026-08-04] There are multiple rooms all named 'Main Street' in Midgaard forming a strip around Market Square; don't assume the first one you see is the right segment for a remembered route. Check the room description text (it names the specific nearby shops) to disambiguate before traveling by feel.
+- [2026-08-04] Mapping trips work well by just using move + look each step without engaging any mobs seen along the way (fidos, gelatinous blob, cityguards) — none of them aggro on simple passage through.

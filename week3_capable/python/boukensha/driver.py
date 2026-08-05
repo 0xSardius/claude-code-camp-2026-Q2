@@ -54,7 +54,12 @@ class Policy:
     rest_below_health: float = 0.35      # fraction of max HP
     resume_above_health: float = 0.85
     rest_below_movement: float = 0.15
-    resume_above_movement: float = 0.60
+    # 0.40, not the 0.60 this started at. Movement regenerates slowly -- `dummy`
+    # sat at 19/93 after a live run -- and 0.60 meant waiting for 56 points
+    # before doing anything. You do not need a full tank to run an errand: at
+    # 0.40 a 93-move character has 37 moves, which covers any route in town with
+    # room to get back. Lowered on evidence, and still a number to argue with.
+    resume_above_movement: float = 0.40
     stall_cycles: int = 3                # cycles with no progress before we stop
     max_rest_cycles: int = 12            # give up resting rather than loop forever
     recover_after_dead_cycles: int = 1   # turns that achieved nothing before we recover
