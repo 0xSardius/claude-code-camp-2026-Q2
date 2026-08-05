@@ -20,6 +20,10 @@ Build an agent architecture that can perceive, understand, decide, act, remember
 - I chose to initially fix areas with brittle stuff from last week first (deterministic pathing, explicit STOP commands)
 - I also chose to harden 3 critical subsystems first (nav, combat, recovery) so I don't go crazy out of scope and bogged down
 - getting some ridiculous jargon from claude that makes it hard to understand what it is actually doing, this has been a challenge in this project. Had to make a rule to stop all the slopus witticisms... it was one too "corpus" and "load-bearing spine" too many.
+- Ran into some issues with the MUD login breaking that were unrealted to boukensha. I did some tests to confirm this while running overall dry testing of the initial harness.
+- Testing Look provided good lessons to the economy tool.
+- Changed our dry run suite to count actions instead of cycles, improving and giving more granular data for our test suite
+- Improved our walking loop.
 
 ## Technical Conclusions
 

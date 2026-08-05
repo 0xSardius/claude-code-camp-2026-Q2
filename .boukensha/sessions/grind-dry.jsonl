@@ -1,0 +1,4 @@
+{"phase": "session_start", "max_iterations": 25, "max_turn_tokens": 60000, "max_output_tokens": 4096, "context_window": 1000000, "model": "claude-sonnet-5", "provider": "anthropic", "session_id": "20260804T014640Z-2210e0be", "at": "2026-08-03T21:46:40-04:00"}
+{"phase": "driver_cycle", "action": "hunted", "used_model": true, "note": "no progress", "mechanical_actions": 0, "model_actions": 0, "session_id": "20260804T014640Z-2210e0be", "at": "2026-08-03T21:46:40-04:00"}
+{"phase": "driver_cycle", "action": "hunted", "used_model": true, "note": "no progress", "mechanical_actions": 0, "model_actions": 0, "session_id": "20260804T014640Z-2210e0be", "at": "2026-08-03T21:46:40-04:00"}
+{"phase": "driver_cycle", "action": "hunted", "used_model": true, "note": "no progress", "mechanical_actions": 0, "model_actions": 0, "session_id": "20260804T014640Z-2210e0be", "at": "2026-08-03T21:46:40-04:00"}
