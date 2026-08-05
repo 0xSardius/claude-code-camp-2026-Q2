@@ -20,6 +20,7 @@ is assumed -- missing fields are reported as unknown rather than zero, because
 first quietly under-reports.
 """
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -155,6 +156,59 @@ class SessionReport:
             "hook_errors": Counter(e.get("hook") for e in self._by_phase("hook_error")),
             "reasoning_events": len(self._by_phase("reasoning")),
             "log_bytes": sum(p.stat().st_size for p in self.sources),
+            **self._capability(sum(costs) if costs else None),
+        }
+
+    def _capability(self, cost_total):
+        """The three numbers docs/plans/week3/README.md grades the week on.
+
+        They were specified as "computable from the week 2 session reporter"
+        and were not: nothing here read the driver's lines, so every figure was
+        being worked out by hand from raw JSONL after each run. A number that
+        only exists when someone remembers to calculate it is not a metric.
+
+        Everything below comes from structured fields. Nothing matches on the
+        text of a tool result -- those strings are ours and would probably be
+        stable, but a reporter that reads its own prose is one rewording away
+        from silently reporting zero.
+        """
+        cycles = self._by_phase("driver_cycle")
+        runs = self._by_phase("driver_run")
+
+        mech = sum(c.get("mechanical_actions", 0) or 0 for c in cycles)
+        model = sum(c.get("model_actions", 0) or 0 for c in cycles)
+        actions = mech + model
+
+        # Progress is experience across a whole run; a per-cycle delta would
+        # miss the kills that land on a later tick.
+        gained = 0
+        for r in runs:
+            a, b = r.get("starting_exp"), r.get("ending_exp")
+            if isinstance(a, int) and isinstance(b, int) and b > a:
+                gained += b - a
+
+        # A recovery EPISODE is one sit-down. The follow-on cycles that wait
+        # are noted "cycle N", so counting every resting cycle would score a
+        # single long rest as a dozen separate incidents.
+        episodes = sum(1 for c in cycles
+                       if c.get("action") == "resting"
+                       and not re.match(r"^cycle \d+$", str(c.get("note", ""))))
+        completed = sum(1 for c in cycles if c.get("action") == "stood_up")
+        endings = Counter(r.get("stopped_because") for r in runs)
+        bad = endings.get("stalled", 0) + endings.get("stuck_recovering", 0)
+
+        return {
+            "driver_cycles": len(cycles),
+            "driver_runs": len(runs),
+            "mechanical_actions": mech,
+            "model_actions": model,
+            "judgment_ratio": (model / actions) if actions else None,
+            "experience_gained": gained,
+            "cost_per_experience": (cost_total / gained) if cost_total and gained else None,
+            "recovery_episodes": episodes,
+            "recoveries_completed": completed,
+            "run_endings": dict(endings),
+            "runs_ended_badly": bad,
         }
 
     def render(self):
@@ -183,6 +237,25 @@ class SessionReport:
         add(f"  cost                 {_fmt_usd(s['cost_total'])}   (priced: {s['priced_responses']} responses)")
         if s["cost_per_turn"]:
             add(f"  cost per turn        {_fmt_usd(s['cost_per_turn'])}")
+        if s["driver_cycles"]:
+            add("")
+            add("CAPABILITY   (docs/plans/week3/README.md)")
+            ratio = s["judgment_ratio"]
+            add(f"  driver runs          {s['driver_runs']}   ({_fmt_int(s['driver_cycles'])} cycles)")
+            add(f"  judgment ratio       {f'{ratio:.0%}' if ratio is not None else 'n/a'}"
+                f"   of actions needed the model"
+                f"   ({_fmt_int(s['model_actions'])} model, "
+                f"{_fmt_int(s['mechanical_actions'])} mechanical)")
+            per = s["cost_per_experience"]
+            add(f"  experience gained    {_fmt_int(s['experience_gained'])}")
+            add(f"  cost per experience  {_fmt_usd(per) if per else 'n/a'}"
+                + ("   <- spend per unit of progress, not per turn" if per else ""))
+            add(f"  recovery             {s['recoveries_completed']}/{s['recovery_episodes']} "
+                f"episodes recovered from")
+            if s["run_endings"]:
+                for reason, n in sorted(s["run_endings"].items(), key=lambda kv: -kv[1]):
+                    flag = "   <-- never got to work" if reason == "stuck_recovering" else ""
+                    add(f"    ended {str(reason):<16} {n}{flag}")
         add("")
         add("HEALTH")
         add(f"  truncated responses  {s['truncations']}")

@@ -274,6 +274,81 @@ def reporter_survives_a_torn_final_line():
     assert s["turns"] == 1, s
 
 
+# ---- the week3 acceptance numbers -------------------------------------------
+
+def _capability_log(dirpath, lines):
+    (dirpath / "s.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+    return SessionReport.from_paths([dirpath / "s.jsonl"]).summary()
+
+
+@test
+def the_reporter_computes_the_three_acceptance_numbers():
+    """docs/plans/week3/README.md says these are computable from the session
+    reporter. They were not -- nothing read the driver's lines, so every figure
+    was worked out by hand from raw JSONL after each run."""
+    d = Path(tempfile.mkdtemp())
+    s = _capability_log(d, [
+        {"phase": "driver_cycle", "action": "hunted", "used_model": True,
+         "note": "progress", "model_actions": 2, "mechanical_actions": 18},
+        {"phase": "driver_cycle", "action": "resting", "used_model": False,
+         "note": "low health", "model_actions": 0, "mechanical_actions": 1},
+        {"phase": "driver_cycle", "action": "resting", "used_model": False,
+         "note": "cycle 2", "model_actions": 0, "mechanical_actions": 1},
+        {"phase": "driver_cycle", "action": "stood_up", "used_model": False,
+         "note": "recovered", "model_actions": 0, "mechanical_actions": 1},
+        {"phase": "response", "cost": 0.40},
+        {"phase": "driver_run", "goal": "g", "cycles": 4,
+         "stopped_because": "max_cycles", "starting_exp": 100, "ending_exp": 180},
+    ])
+    assert s["model_actions"] == 2 and s["mechanical_actions"] == 21, s
+    assert abs(s["judgment_ratio"] - 2 / 23) < 1e-9, s["judgment_ratio"]
+    assert s["experience_gained"] == 80, s
+    assert abs(s["cost_per_experience"] - 0.40 / 80) < 1e-9, s
+
+    # One sit-down is ONE incident. The follow-on waiting cycles are noted
+    # "cycle N" -- counting those would score a single long rest as several.
+    assert s["recovery_episodes"] == 1, s
+    assert s["recoveries_completed"] == 1, s
+
+
+@test
+def a_run_that_never_got_to_work_is_not_scored_as_a_healthy_finish():
+    d = Path(tempfile.mkdtemp())
+    s = _capability_log(d, [
+        {"phase": "driver_run", "goal": "g", "cycles": 8,
+         "stopped_because": "stuck_recovering", "starting_exp": 10, "ending_exp": 10},
+        {"phase": "driver_run", "goal": "g", "cycles": 3,
+         "stopped_because": "task_done", "starting_exp": 10, "ending_exp": 10},
+    ])
+    assert s["runs_ended_badly"] == 1, s
+    assert s["run_endings"]["stuck_recovering"] == 1, s
+
+
+@test
+def experience_that_went_down_is_not_counted_as_progress():
+    """Fleeing costs experience in CircleMUD, so a run can end lower than it
+    started. Summing signed deltas would let one bad run cancel a good one and
+    report cost-per-experience against a total that never happened."""
+    d = Path(tempfile.mkdtemp())
+    s = _capability_log(d, [
+        {"phase": "driver_run", "goal": "g", "cycles": 1,
+         "stopped_because": "max_cycles", "starting_exp": 292, "ending_exp": 291},
+    ])
+    assert s["experience_gained"] == 0, s
+    assert s["cost_per_experience"] is None, s
+
+
+@test
+def logs_with_no_driver_lines_report_nothing_rather_than_zero():
+    """Week1 and week2 sessions predate the driver entirely, and they are in the
+    same directory. A confident 0% judgment ratio over those would be a lie."""
+    d = Path(tempfile.mkdtemp())
+    s = _capability_log(d, [{"phase": "turn", "n": 1}, {"phase": "response", "cost": 0.1}])
+    assert s["judgment_ratio"] is None, s
+    assert s["driver_cycles"] == 0 and s["driver_runs"] == 0, s
+    assert "CAPABILITY" not in SessionReport.from_paths([d / "s.jsonl"]).render()
+
+
 if __name__ == "__main__":
     failures = 0
     for fn in TESTS:

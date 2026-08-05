@@ -153,6 +153,15 @@ class Logger:
                          "mechanical_actions": int(mechanical_actions),
                          "model_actions": int(model_actions)})
 
+    # week3: one line per driver RUN, written when it ends. The per-cycle lines
+    # cannot answer "what did this cost per unit of progress" on their own,
+    # because experience is only meaningful as a delta across the whole run.
+    def driver_run(self, *, goal, task=None, cycles, stopped_because,
+                   starting_exp=None, ending_exp=None):
+        self._write_log({"phase": "driver_run", "goal": goal, "task": task,
+                         "cycles": int(cycles), "stopped_because": stopped_because,
+                         "starting_exp": starting_exp, "ending_exp": ending_exp})
+
     def raw(self, *, data):
         if not is_debug():
             return

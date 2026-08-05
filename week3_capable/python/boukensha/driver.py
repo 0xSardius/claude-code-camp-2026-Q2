@@ -832,4 +832,10 @@ class Driver:
             # Both end the run, but only one of them is a healthy finish.
             result.stopped_because = "max_cycles" if budget <= 0 else "stuck_recovering"
         result.ending_exp = self.assess().exp
+        if self.logger is not None:
+            self.logger.driver_run(
+                goal=self.goal, task=self.task, cycles=len(result.cycles),
+                stopped_because=result.stopped_because,
+                starting_exp=result.starting_exp, ending_exp=result.ending_exp,
+            )
         return result

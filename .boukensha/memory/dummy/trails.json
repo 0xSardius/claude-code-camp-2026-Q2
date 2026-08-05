@@ -59,6 +59,11 @@
       "main street#7f015c",
       "north",
       "the bakery#4e727c"
+    ],
+    [
+      "main street#826a8c",
+      "north",
+      "the weapon shop#d19bfc"
     ]
   ],
   "rooms": {
@@ -133,6 +138,14 @@
       ],
       "first_seen": "2026-08-04",
       "name": "The Bakery"
+    },
+    "the weapon shop#d19bfc": {
+      "description": "The smell of worked metals and various quenching oils fills the room.  Every available space in the room including the ceiling is loaded with various equipment and weaponry.  There is a small note on the counter.",
+      "exits": [
+        "south"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Weapon Shop"
     }
   }
 }

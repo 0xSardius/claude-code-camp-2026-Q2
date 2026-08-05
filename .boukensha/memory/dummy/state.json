@@ -1,15 +1,15 @@
 {
   "exp": 7119,
   "exp_to_level": 2881,
-  "gold": 332,
+  "gold": 323,
   "hp": "57/57",
   "hp_now": 57,
   "level": 4,
   "mana": "100/100",
   "moves": "54/93",
-  "moves_now": 42,
-  "position": "the bakery#4e727c",
+  "moves_now": 93,
+  "position": "the weapon shop#d19bfc",
   "position_state": "resting",
   "title": "Dummy the Pick-Pocket",
-  "updated_at": "2026-08-04T20:56:35-04:00"
+  "updated_at": "2026-08-05T19:45:01-04:00"
 }

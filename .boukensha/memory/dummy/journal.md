@@ -1,15 +1,15 @@
 # dummy
 
-_Generated 2026-08-04 from recorded state. Numbers in this section are rendered from the store, not written by the agent._
+_Generated 2026-08-05 from recorded state. Numbers in this section are rendered from the store, not written by the agent._
 
 ## Status
 - **Level:** 4
 - **HP:** 57/57
 - **Experience:** 7119
-- **Gold:** 332
-- **Last seen:** The Bakery
-- **Rooms known:** 7
-- **Routes walked:** 12
+- **Gold:** 323
+- **Last seen:** The Weapon Shop
+- **Rooms known:** 8
+- **Routes walked:** 13
 
 ## What it knows
 
@@ -33,8 +33,11 @@ _Generated 2026-08-04 from recorded state. Numbers in this section are rendered 
 - Route to the Bakery from Market Square: from Market Square go west to a Main Street room ('South of here is the entrance to the Armory, and the bakery is to the north'), then north into The Bakery. This is a DIFFERENT Main Street segment than the one east of Market Square (which has the general store and pet shop).
 - Main Street east of the Bakery/Armory runs through Market Square, then a segment with general store/pet shop, then a segment with weapon shop/Guild of Swordsmen, ending at Inside The East Gate of Midgaard (city gate, usually closed, guarded by two cityguards). That gate is the eastern terminus of Main Street — cannot go further east while it's closed.
 - Main Street is a single continuous strip of 5 rooms between two gates: West Gate segment (Guild of Magic Users south, Magic Shop north, city gate west) -- Armory/Bakery segment (Armory south, Bakery north) -- Market Square (hub, n=temple square, s=common square) -- General Store/Pet Shop segment (store north, pet shop south) -- Weapon Shop/Guild of Swordsmen segment (shop north, guild south, fidos often here) -- Inside The East Gate of Midgaard (Water Shop south, two cityguards, east gate usually closed).
+- The Weapon Shop (Main Street east segment, north side) stock: flail 858g, warhammer 68g, wooden club 16g, long sword 824g, small sword 82g, dagger 13g. All are unlimited stock, plain/mundane (no magic aura) — confirmed by buying the dagger and examining it: 'You see nothing special', versus my shiny newbie dagger which shows 'a soft glowing aura'. Shop buys weapons back at a fraction (sold the 13g dagger back for 3g).
+- My starting 'shiny newbie dagger' has a magical glowing aura (implying a stat bonus) and is strictly better than the Weapon Shop's plain 13g dagger. None of the Weapon Shop's stock (flail, warhammer, club, long sword, small sword, dagger) is enchanted, so none is an upgrade over my current newbie gear at level 4.
 
 ## What it has learned
 
 - [2026-08-04] There are multiple rooms all named 'Main Street' in Midgaard forming a strip around Market Square; don't assume the first one you see is the right segment for a remembered route. Check the room description text (it names the specific nearby shops) to disambiguate before traveling by feel.
 - [2026-08-04] Mapping trips work well by just using move + look each step without engaging any mobs seen along the way (fidos, gelatinous blob, cityguards) — none of them aggro on simple passage through.
+- [2026-08-05] To compare a shop weapon against my own gear, I had to actually buy one and examine it (examine/look on a generic name like 'dagger' resolves to my own wielded/carried item first, not the shop's stock, if I already carry one). Buying then selling back costs a small gold fee (13g buy, 3g sellback = 10g loss) but is worth it to verify enchantment/aura differences when descriptions alone are ambiguous.
