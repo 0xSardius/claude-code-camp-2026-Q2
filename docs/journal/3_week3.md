@@ -32,7 +32,7 @@ Build an agent architecture that can perceive, understand, decide, act, remember
 - We found a bug in the way we were building maps and memory, and then buidl a rewrite around ti.
 - 8/5 focused on perfecting our grind loop, and getting the agent to play as our character.
 - We had a great move where in memory it was noticed that backstab worked well on a certain monster (creepy little crawling things) and autonomously created a better hunting loop and skill usage. Great stuff. Levled up to level 5 in this loop alone
-- - Two grind runs in a row got us nothing, and it turned out the loop was fine. He swept
+- Two grind runs in a row got us nothing, and it turned out the loop was fine. He swept
   the hunting ground, found it empty, said so, and passed on the one mob that was there
   because it wasn't worth the risk. The actual problem was that he had written himself a
   note days earlier saying the hallway loop was a good safe farm, which was true at the

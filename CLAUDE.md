@@ -36,11 +36,19 @@ week2_observability/  -- "observability" phase: lifecycle hooks + the three week
                              mud_parse.py and report.py are the week2 additions
   python/tests/            -- 86 offline tests, no runner dep (bin/test)
   bin/                      -- example, smoke, bakery, report, test
-week3_capable/         -- "capable" phase: not started yet (empty)
+week3_capable/         -- "capable" phase: the driver, and the subsystems it runs.
+                          Forked from week2_observability 2026-08-02. THE ACTIVE TREE.
+  python/boukensha/       -- driver.py (the grind loop, goal decomposition, recovery)
+                             and harness.py (one agent kept alive across many turns)
+                             are the week3 additions
+  python/tests/            -- 163 offline tests, no runner dep (bin/test)
+  seeds/                    -- prior notes handed to a character as claims (bin/seed)
+  bin/                       -- grind, seed, report, test, example, smoke, bakery
 docs/
   journal/            -- weekly retros: Goal/Uncertainty/Hypothesis/Observations/Conclusions
   plans/python_port/    -- one plan file per week1_baseline step being ported
   plans/week2/           -- week2's per-pillar execution plans + settled decisions
+  plans/week3/            -- week3's scope, the judgment/routine boundary, test harness
   explore_architectures.md  -- freeform week0 observations
 .boukensha/            -- shared runtime config (gitignored EXCEPT .keep,
                           sessions/*.jsonl and memory/** -- those are committed
