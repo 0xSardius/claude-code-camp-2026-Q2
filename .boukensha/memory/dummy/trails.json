@@ -64,9 +64,198 @@
       "main street#826a8c",
       "north",
       "the weapon shop#d19bfc"
+    ],
+    [
+      "the weapon shop#d19bfc",
+      "south",
+      "main street#826a8c"
+    ],
+    [
+      "the temple square#f1db6c",
+      "north",
+      "the temple of midgaard#b486df"
+    ],
+    [
+      "the temple of midgaard#b486df",
+      "north",
+      "by the temple altar#3551e4"
+    ],
+    [
+      "by the temple altar#3551e4",
+      "north",
+      "behind the temple altar#0bb715"
+    ],
+    [
+      "behind the temple altar#0bb715",
+      "north",
+      "the great field of midgaard#96e4a5"
+    ],
+    [
+      "the great field of midgaard#96e4a5",
+      "north",
+      "the great field of midgaard#002d54"
+    ],
+    [
+      "the great field of midgaard#002d54",
+      "east",
+      "the entrance to the newbie zone#4b71b8"
+    ],
+    [
+      "the entrance to the newbie zone#4b71b8",
+      "north",
+      "the beginning of the passage#86e9f7"
+    ],
+    [
+      "the beginning of the passage#86e9f7",
+      "east",
+      "the dirty hallway#f8adae"
+    ],
+    [
+      "the dirty hallway#f8adae",
+      "east",
+      "a nexus#7cf280"
+    ],
+    [
+      "a nexus#7cf280",
+      "south",
+      "more of the hallway#f04bdb"
+    ],
+    [
+      "more of the hallway#f04bdb",
+      "south",
+      "another corner#0f3b27"
+    ],
+    [
+      "another corner#0f3b27",
+      "west",
+      "a brighter hallway#5ba896"
+    ],
+    [
+      "a brighter hallway#5ba896",
+      "east",
+      "another corner#0f3b27"
+    ],
+    [
+      "another corner#0f3b27",
+      "north",
+      "more of the hallway#f04bdb"
+    ],
+    [
+      "more of the hallway#f04bdb",
+      "north",
+      "a nexus#7cf280"
+    ],
+    [
+      "a brighter hallway#5ba896",
+      "west",
+      "the end of the passage#98bc0f"
+    ],
+    [
+      "the end of the passage#98bc0f",
+      "west",
+      "an open field by the great field#ab9e94"
+    ],
+    [
+      "an open field by the great field#ab9e94",
+      "north",
+      "the great field of midgaard#002d54"
+    ],
+    [
+      "the great field of midgaard#96e4a5",
+      "south",
+      "behind the temple altar#0bb715"
+    ],
+    [
+      "the end of the passage#98bc0f",
+      "east",
+      "a brighter hallway#5ba896"
+    ],
+    [
+      "a nexus#7cf280",
+      "west",
+      "the dirty hallway#f8adae"
+    ],
+    [
+      "the dirty hallway#f8adae",
+      "west",
+      "the beginning of the passage#86e9f7"
+    ],
+    [
+      "the beginning of the passage#86e9f7",
+      "south",
+      "the entrance to the newbie zone#4b71b8"
+    ],
+    [
+      "the entrance to the newbie zone#4b71b8",
+      "west",
+      "the great field of midgaard#002d54"
+    ],
+    [
+      "the great field of midgaard#002d54",
+      "west",
+      "the dirt path#74c6eb"
+    ],
+    [
+      "the dirt path#74c6eb",
+      "west",
+      "the great chessboard of midgaard#8a9ea4"
     ]
   ],
   "rooms": {
+    "a brighter hallway#5ba896": {
+      "description": "The hallway continues on in a east-west direction... and it seems to be brightening up to the west.",
+      "exits": [
+        "east",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "A Brighter Hallway"
+    },
+    "a nexus#7cf280": {
+      "description": "Well... you've reached an intersection of two passages, to the north and east, the passage brightens, while the darker hallway continues to the south.",
+      "exits": [
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "A Nexus"
+    },
+    "an open field by the great field#ab9e94": {
+      "description": "Finally, you are in an open field... it is so nice to breathe fresh air again!  You can return to that dank, smelly place to the east, or take the exit to the north which appears to lead into a large field.",
+      "exits": [
+        "east",
+        "north"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "An Open Field By The Great Field"
+    },
+    "another corner#0f3b27": {
+      "description": "Another corner of the passage, and just as untidy as the rest of this place (maybe more so?).  There is a door to the east though... wonder where that leads?  Oh, and the hallway continues west and north.",
+      "exits": [
+        "north",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "Another Corner"
+    },
+    "behind the temple altar#0bb715": {
+      "description": "You are on a dirt path leading away from the Temple Altar which is south of here.  To the north, the path continues through the lush contryside of Midgaard towards the Dragonhelm Mountains far off to the north.",
+      "exits": [
+        "north",
+        "south"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "Behind The Temple Altar"
+    },
+    "by the temple altar#3551e4": {
+      "description": "You are by the temple altar in the northern end of the Temple of Midgaard. A huge altar made from white polished marble dominates this part of the temple. Towering behind the altar is a ten foot tall sitting statue of Odin, the King of the Gods. To the north, steps lead out the back of the temple towards the countryside.",
+      "exits": [
+        "north",
+        "south"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "By The Temple Altar"
+    },
     "inside the east gate of midgaard#7ec43f": {
       "description": "You are by two small towers that have been built into the city wall and connected with a footbridge across the heavy wooden gate.  Main Street leads west from here.  To the south you see the Water Shop.",
       "exits": [
@@ -131,6 +320,15 @@
       "first_seen": "2026-08-04",
       "name": "Market Square"
     },
+    "more of the hallway#f04bdb": {
+      "description": "Oh joy!  More of this annoying passage.  Perhaps there is something more exciting through that door to the west?  Or you can keep searching the hallways to the north or south.",
+      "exits": [
+        "north",
+        "south"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "More Of The Hallway"
+    },
     "the bakery#4e727c": {
       "description": "You are standing inside the small bakery.  A sweet scent of danish and fine bread fills the room.  The bread and Danish are arranged in fine order on the shelves, and seem to be of the finest quality. A small sign is on the counter.",
       "exits": [
@@ -138,6 +336,103 @@
       ],
       "first_seen": "2026-08-04",
       "name": "The Bakery"
+    },
+    "the beginning of the passage#86e9f7": {
+      "description": "You find yourself entering a long corridor.  You can hear the sound of creatures roaming about, but you can't tell where the sound emanates from exactly. Exits lead to the east along the hallway, and south back to the entrance.",
+      "exits": [
+        "east",
+        "south"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Beginning Of The Passage"
+    },
+    "the dirt path#74c6eb": {
+      "description": "You are walking along a narrow dirt path through the lush, green, fresh Midgaard countryside.  You can see to the horizon to the north and east; the busy city of Midgaard lies to the south.  All around you is healthy green grass and an occasional large oak tree.  The sun feels wonderful on your face and a pleasant wind blows through your hair.  Birds chirp quietly to themselves and you can smell the faint scent of flowers and freshly cut grass.  You feel like you could lie down in the grass and stay here forever, surrounded by powerful beauty in all directions. There is a large rusty gate sitting in a stone archway just to the west.",
+      "exits": [
+        "east",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Dirt Path"
+    },
+    "the dirty hallway#f8adae": {
+      "description": "You continue wandering down the hallway.  Nothing much different here, but you are positive you here noises behind the door to the south, and coming from the east.  The walls are a bit slimy and moldy here... yeech, couldn't they hire someone to clean this place?  What will the newbies think?  Oh well, you can continue along the hallway to the east or west.",
+      "exits": [
+        "east",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Dirty Hallway"
+    },
+    "the end of the passage#98bc0f": {
+      "description": "Ahhh... at last, the end of the hallway... you can exit into open air to the west,or return to the east and make sure you didn't miss anything.",
+      "exits": [
+        "east",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The End Of The Passage"
+    },
+    "the entrance to the newbie zone#4b71b8": {
+      "description": "Ahhh... the entrance to the newbie zone!  Just the place you have been looking for.  Well, when you've readied yourself you can enter to the north.",
+      "exits": [
+        "north",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Entrance To The Newbie Zone"
+    },
+    "the great chessboard of midgaard#8a9ea4": {
+      "description": "You stand in the archway of the Chessboard of Midgaard.  The giant wooden gate is rusted open. A narrow dirt path leads eastwards into the thick grass and the chessboard opens up to the west.",
+      "exits": [
+        "east",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Great Chessboard Of Midgaard"
+    },
+    "the great field of midgaard#002d54": {
+      "description": "You are walking on a wide dirt path through the lush, green, fresh Midgaard countryside.  You can see to the horizon to the north, east, and west; the busy city of Midgaard lies to the south.  All around you is healthy green grass and an occasional large oak tree.  The sun feels wonderful on your face and a pleasant wind blows through your hair.  Birds chirp quietly to themselves and you can smell the faint scent of flowers and freshly cut grass.  You feel like you could lie down in the grass and stay here forever, surrounded by powerful beauty in all directions. There is a strange structure on the eastern side of the path.  A small dirt path splits off of the main path and leads off to the west.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Great Field Of Midgaard"
+    },
+    "the great field of midgaard#96e4a5": {
+      "description": "You are walking on a wide dirt path through the lush, green, fresh Midgaard countryside.  You can see to the horizon to the north, east, and west; the busy city of Midgaard lies to the south.  All around you is healthy green grass and an occasional large oak tree.  The sun feels wonderful on your face and a pleasant wind blows through your hair.  Birds chirp quietly to themselves and you can smell the faint scent of flowers and freshly cut grass.  You feel like you could lie down in the grass and stay here forever, surrounded by powerful beauty in all directions. The path you are on continues north through the field and south back to Midgaard.",
+      "exits": [
+        "north",
+        "south"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Great Field Of Midgaard"
+    },
+    "the temple of midgaard#b486df": {
+      "description": "You are in the southern end of the temple hall in the Temple of Midgaard. The temple has been constructed from giant marble blocks, eternal in appearance, and most of the walls are covered by ancient wall paintings picturing Gods, giants and peasants. Large steps lead down through the grand temple gate, descending the huge mound upon which the temple is built and ends on the temple square below. To the west, you see the Reading Room.  The donation room is in a small alcove to your east.",
+      "exits": [
+        "down",
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Temple Of Midgaard"
+    },
+    "the temple square#f1db6c": {
+      "description": "You are standing on the temple square.  Huge marble steps lead up to the temple gate.  The entrance to the Clerics' Guild is to the west, and the old Grunting Boar Inn, is to the east.  Just south of here you see the market square, the center of Midgaard.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Temple Square"
     },
     "the weapon shop#d19bfc": {
       "description": "The smell of worked metals and various quenching oils fills the room.  Every available space in the room including the ceiling is loaded with various equipment and weaponry.  There is a small note on the counter.",

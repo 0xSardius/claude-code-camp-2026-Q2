@@ -1,15 +1,15 @@
 {
-  "exp": 7119,
-  "exp_to_level": 2881,
-  "gold": 323,
+  "exp": 8165,
+  "exp_to_level": 1835,
+  "gold": 494,
   "hp": "57/57",
   "hp_now": 57,
   "level": 4,
   "mana": "100/100",
-  "moves": "54/93",
-  "moves_now": 93,
-  "position": "the weapon shop#d19bfc",
-  "position_state": "resting",
+  "moves": "92/93",
+  "moves_now": 76,
+  "position": "the great chessboard of midgaard#8a9ea4",
+  "position_state": "fighting",
   "title": "Dummy the Pick-Pocket",
-  "updated_at": "2026-08-05T19:45:01-04:00"
+  "updated_at": "2026-08-05T20:04:14-04:00"
 }

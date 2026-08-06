@@ -5,11 +5,11 @@ _Generated 2026-08-05 from recorded state. Numbers in this section are rendered 
 ## Status
 - **Level:** 4
 - **HP:** 57/57
-- **Experience:** 7119
-- **Gold:** 323
-- **Last seen:** The Weapon Shop
-- **Rooms known:** 8
-- **Routes walked:** 13
+- **Experience:** 8165
+- **Gold:** 494
+- **Last seen:** The Great Chessboard Of Midgaard
+- **Rooms known:** 25
+- **Routes walked:** 40
 
 ## What it knows
 
@@ -35,9 +35,14 @@ _Generated 2026-08-05 from recorded state. Numbers in this section are rendered 
 - Main Street is a single continuous strip of 5 rooms between two gates: West Gate segment (Guild of Magic Users south, Magic Shop north, city gate west) -- Armory/Bakery segment (Armory south, Bakery north) -- Market Square (hub, n=temple square, s=common square) -- General Store/Pet Shop segment (store north, pet shop south) -- Weapon Shop/Guild of Swordsmen segment (shop north, guild south, fidos often here) -- Inside The East Gate of Midgaard (Water Shop south, two cityguards, east gate usually closed).
 - The Weapon Shop (Main Street east segment, north side) stock: flail 858g, warhammer 68g, wooden club 16g, long sword 824g, small sword 82g, dagger 13g. All are unlimited stock, plain/mundane (no magic aura) — confirmed by buying the dagger and examining it: 'You see nothing special', versus my shiny newbie dagger which shows 'a soft glowing aura'. Shop buys weapons back at a fraction (sold the 13g dagger back for 3g).
 - My starting 'shiny newbie dagger' has a magical glowing aura (implying a stat bonus) and is strictly better than the Weapon Shop's plain 13g dagger. None of the Weapon Shop's stock (flail, warhammer, club, long sword, small sword, dagger) is enchanted, so none is an upgrade over my current newbie gear at level 4.
+- Confirmed route from The Bakery to A Brighter Hallway (Newbie Zone): south, east, north, north, north, north, north, north, east, north, east, east, south, south, west (15 hops). Path: Bakery -> Main Street(Armory/Bakery) -> Market Square -> Temple Square -> Temple Of Midgaard -> By The Temple Altar -> Behind The Temple Altar -> The Great Field Of Midgaard -> The Great Field Of Midgaard (east side, near strange structure) -> The Entrance To The Newbie Zone -> The Beginning Of The Passage -> The Dirty Hallway -> A Nexus -> More Of The Hallway -> Another Corner -> A Brighter Hallway.
+- A baby dragon (pet dragon) roams 'More Of The Hallway' in the Newbie Zone. Consider returned 'The perfect match!' — an even fight, not a safe farm target. Avoid unless specifically prepared for a real fight.
 
 ## What it has learned
 
 - [2026-08-04] There are multiple rooms all named 'Main Street' in Midgaard forming a strip around Market Square; don't assume the first one you see is the right segment for a remembered route. Check the room description text (it names the specific nearby shops) to disambiguate before traveling by feel.
 - [2026-08-04] Mapping trips work well by just using move + look each step without engaging any mobs seen along the way (fidos, gelatinous blob, cityguards) — none of them aggro on simple passage through.
 - [2026-08-05] To compare a shop weapon against my own gear, I had to actually buy one and examine it (examine/look on a generic name like 'dagger' resolves to my own wielded/carried item first, not the shop's stock, if I already carry one). Buying then selling back costs a small gold fee (13g buy, 3g sellback = 10g loss) but is worth it to verify enchantment/aura differences when descriptions alone are ambiguous.
+- [2026-08-05] The Great Field Of Midgaard is a large room requiring two 'north' moves to cross before its eastern exit (leading to the Newbie Zone entrance) becomes available — the room description changes slightly (mentions a strange structure/side path) once you've moved far enough. Don't assume one visit to a same-named room means you've passed through it; check exits each step on multi-room fields.
+- [2026-08-05] Newbie monsters in the Newbie Zone hallways respawn very fast — sometimes a new one is already attacking before you finish looting the last corpse. Good, safe, repeatable exp farm (24-188 exp per kill observed) as long as you keep considering each one (all came back 'Easy').
+- [2026-08-05] Creepy little crawling things in the Newbie Zone pay surprisingly well when actually landed with backstab — one gave +171 exp, way above the usual few-gold trash-mob expectation. Worth considering and engaging them just like newbie monsters, not skipping them as filler.

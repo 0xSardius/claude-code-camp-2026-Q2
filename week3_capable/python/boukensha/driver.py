@@ -760,7 +760,19 @@ class Driver:
             f"are expected to fight rather than wait. If you genuinely think you are "
             f"too hurt, end the turn saying so — that counts as a turn that achieved "
             f"nothing, and you will be rested before the next one.\n\n"
-            "Do not leave the zone you are in, and do not attack guards or players."
+            # This used to read "do not leave the zone you are in", which was a
+            # rail from when the character was a level-1 throwaway in a newbie
+            # alley with nothing worth walking to. For a levelled character it
+            # forbids the whole point: city mobs pay 1-6 experience and the
+            # Newbie Zone pays 150-670, and they are different zones. A blanket
+            # ban was standing in for the real concern, which is not "moving" --
+            # it is going somewhere you cannot handle or cannot get back from.
+            "Hunt where it is actually worth hunting. Your notes may name grounds "
+            "that paid well before; going there is fine and often right. Two rules: "
+            "know the way back before you commit to a long walk, and do not pick a "
+            "fight you have no reason to think you can win — `consider` first, and "
+            "believe it.\n\n"
+            "Never attack guards or players."
         )
 
     def _check_progress(self, before):
