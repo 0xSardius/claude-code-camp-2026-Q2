@@ -47,8 +47,13 @@ class Logger:
     def limit_reached(self, *, kind, n, max):
         self._write_log({"phase": "limit_reached", "kind": kind, "n": n, "max": max})
 
-    def turn_end(self, *, reason, iterations, tokens=None):
-        self._write_log({"phase": "turn_end", "reason": reason, "iterations": iterations, "tokens": tokens})
+    def turn_end(self, *, reason, iterations, tokens=None, seconds=None):
+        # `seconds` so a turn that took an abnormally long time is visible
+        # afterwards. A run hung for 22 hours on 2026-08-05 and the log gave no
+        # way to see it: every line looked normal, there were just no more of
+        # them. Duration is what makes "it stopped" different from "it is slow".
+        self._write_log({"phase": "turn_end", "reason": reason, "iterations": iterations,
+                         "tokens": tokens, "seconds": seconds})
 
     # week2 M6: log a DIGEST of the message list, not the whole thing.
     #

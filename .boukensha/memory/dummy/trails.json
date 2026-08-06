@@ -409,6 +409,11 @@
       "the south stairs#30b3c6",
       "north",
       "the north stairs#206ef9"
+    ],
+    [
+      "behind the temple altar#0bb715",
+      "south",
+      "by the temple altar#3551e4"
     ]
   ],
   "rooms": {
@@ -424,8 +429,7 @@
     "a bright hallway#a05dd5": {
       "description": "Wow!  What a change from the dismal passage to the west.  Whoever keeps this  room up must really like newbies.  The walls and floor are clean, and tastefully decorated.  You also notice an interesting design on the floor.",
       "exits": [
-        "east",
-        "west"
+        "east"
       ],
       "first_seen": "2026-08-05",
       "name": "A Bright Hallway"
@@ -813,6 +817,17 @@
       ],
       "first_seen": "2026-08-05",
       "name": "The Weapon Shop"
+    },
+    "you successfully pierce the annoying newbie and his dead body falls to the ground in a lifeless heap.#8d53ff": {
+      "description": "The annoying newbie is dead!  R.I.P. You receive 133 experience points. You rise a level! Your blood freezes as you hear the annoying newbie's death cry. The South Stairs Here, the hall opens into a wide room, with a high domed roof.  Now that that you have come clear of the enclosed passage, you can see that the stair leads upward to an open air balcony overlooking the area.  to the north the room continues, and another stair is visible matching the one in front of you.",
+      "exits": [
+        "north",
+        "south",
+        "up",
+        "west"
+      ],
+      "first_seen": "2026-08-06",
+      "name": "You successfully pierce the annoying newbie and his dead body falls to the ground in a lifeless heap."
     }
   }
 }

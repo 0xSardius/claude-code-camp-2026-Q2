@@ -356,6 +356,67 @@ def the_prompt_log_reflects_what_was_actually_sent():
     assert fire_at < log_at, "prompt is still logged before before_model fires"
 
 
+@test
+def the_api_call_cannot_block_forever():
+    """urlopen() with no timeout blocks indefinitely -- Python has no default.
+    A run hung on 2026-08-05 for 22 hours: zero CPU, nothing written to the log,
+    no crash. Every MUD read already carried a deadline; the API call was the
+    one blocking operation without one. A hang is worse than a crash for an
+    unattended loop, because a crash is visible."""
+    import urllib.request
+
+    from boukensha.client import Client
+
+    seen = {}
+
+    def fake_urlopen(request, timeout=None):
+        seen["timeout"] = timeout
+        raise TimeoutError("stalled")
+
+    real = urllib.request.urlopen
+    urllib.request.urlopen = fake_urlopen
+    try:
+        client = Client(_StubBuilder(), request_timeout=0.01)
+        try:
+            client.call(max_output_tokens=16)
+        except ApiError:
+            pass
+        else:
+            raise AssertionError("a stalled request should raise, not hang")
+    finally:
+        urllib.request.urlopen = real
+
+    assert seen["timeout"] == 0.01, seen
+    # TimeoutError is in TRANSIENT_ERRORS, so a stall becomes an ordinary retry
+    # rather than a silent stop.
+    assert TimeoutError in Client.TRANSIENT_ERRORS
+
+
+class _StubBuilder:
+    def url(self):
+        return "https://example.invalid/v1/messages"
+
+    def headers(self):
+        return {"content-type": "application/json"}
+
+    def to_api_payload(self, **_kwargs):
+        return {"model": "stub", "messages": []}
+
+
+@test
+def a_turn_records_how_long_it_took():
+    """The hung run's log gave no way to see it: every line looked normal, there
+    were just no more of them. Duration is what tells "it stopped" from "it is
+    slow"."""
+    d = Path(tempfile.mkdtemp())
+    logger = Logger(log=str(d / "s.jsonl"))
+    logger.turn_end(reason="completed", iterations=3, tokens=100, seconds=41.2)
+    logger.close()
+    rows = [json.loads(x) for x in (d / "s.jsonl").read_text().splitlines() if x.strip()]
+    end = [r for r in rows if r.get("phase") == "turn_end"][0]
+    assert end["seconds"] == 41.2, end
+
+
 if __name__ == "__main__":
     failures = 0
     for fn in TESTS:

@@ -12,6 +12,8 @@ docs/plans/python_port/11_tui) is unaffected by this step's changes:
 still checked once per loop iteration, still None for every non-TUI
 caller.
 """
+import time
+
 from .errors import ApiError, TurnInterrupted
 from .hooks import Hook, HookPayload, Hooks
 from .logger import Logger
@@ -94,6 +96,7 @@ class Agent:
         return payload.text
 
     def run(self):
+        self._turn_started_at = time.monotonic()
         self._context.reset_turn_tokens()
         self._compact_if_needed()
         self._fire(Hook.BEFORE_TURN)
@@ -170,9 +173,17 @@ class Agent:
                 # turn is reported as "truncated", not "completed", so downstream
                 # consumers (and after_turn handlers) can tell the difference.
                 reason = "truncated" if truncated else "completed"
-                self._logger.turn_end(reason=reason, iterations=self._iteration, tokens=self._context.turn_tokens)
+                self._logger.turn_end(reason=reason, iterations=self._iteration,
+                                  tokens=self._context.turn_tokens,
+                                  seconds=self._turn_seconds())
                 self._context.add_message("assistant", text)
                 return self._finish_turn(text, reason=reason)
+
+    def _turn_seconds(self):
+        """How long this turn took. Rounded -- this is for spotting a turn that
+        took minutes when it should take seconds, not for benchmarking."""
+        start = getattr(self, "_turn_started_at", None)
+        return None if start is None else round(time.monotonic() - start, 1)
 
     def _iteration_limit_reached(self):
         return self._max_iterations > 0 and self._iteration >= self._max_iterations
@@ -355,12 +366,16 @@ class Agent:
                 text=text, usage=response.get("usage"), stop_reason=parsed_wrap["stop_reason"],
                 **self._cost_fields(response),
             )
-            self._logger.turn_end(reason=reason, iterations=self._iteration, tokens=self._context.turn_tokens)
+            self._logger.turn_end(reason=reason, iterations=self._iteration,
+                                  tokens=self._context.turn_tokens,
+                                  seconds=self._turn_seconds())
             self._context.add_message("assistant", text)
             return self._finish_turn(text, reason=reason)
         except ApiError:
             msg = self._fallback_message(reason)
-            self._logger.turn_end(reason=reason, iterations=self._iteration, tokens=self._context.turn_tokens)
+            self._logger.turn_end(reason=reason, iterations=self._iteration,
+                                  tokens=self._context.turn_tokens,
+                                  seconds=self._turn_seconds())
             self._context.add_message("assistant", msg)
             return self._finish_turn(msg, reason=reason)
 

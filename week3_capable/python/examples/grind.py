@@ -24,6 +24,7 @@ import argparse
 import os
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import boukensha
@@ -101,12 +102,31 @@ def main():
     elif not os.environ.get("ANTHROPIC_API_KEY"):
         sys.exit("ANTHROPIC_API_KEY not set — run via ../bin/grind")
 
-    # Separate logs on purpose: a dry run used to overwrite the live one, and
-    # the first live run's raw data was lost to the next --dry-run before it
-    # could be compared against.
-    name = "grind-dry" if args.dry_run else f"grind-{char['name']}"
-    log = Path(os.environ["BOUKENSHA_DIR"]) / "sessions" / f"{name}.jsonl"
-    log.unlink(missing_ok=True)
+    # ONE FILE PER LIVE RUN, and never deleted.
+    #
+    # This used to be a fixed name per character with an unlink() in front of
+    # it. That was meant to stop a dry run clobbering a live one, and it did --
+    # while quietly making every live run destroy the PREVIOUS live run's log.
+    # It cost the best run of the week: on 2026-08-05 a run gained 1557
+    # experience and produced the only cost-per-experience figure we had, and
+    # the next run wiped the record of it before anything had been reported
+    # from it. The loss was permanent, because the wiped file was then
+    # committed over the good one.
+    #
+    # A session log is evidence. Evidence does not get an unlink() in front of
+    # it just to keep a directory tidy -- the reporter already reads every file
+    # in there and aggregates, so more files is the format working, not clutter.
+    #
+    # Dry runs stay on one overwritable name: they cost nothing, reproduce on
+    # demand, and are not evidence of anything that happened in the world.
+    sessions = Path(os.environ["BOUKENSHA_DIR"]) / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    if args.dry_run:
+        log = sessions / "grind-dry.jsonl"
+        log.unlink(missing_ok=True)
+    else:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        log = sessions / f"grind-{char['name']}-{stamp}.jsonl"
 
     cfg = boukensha.config()
     mem = Memory(char["name"])

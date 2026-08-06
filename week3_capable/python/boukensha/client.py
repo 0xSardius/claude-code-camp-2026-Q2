@@ -51,8 +51,29 @@ class Client:
     MAX_RETRIES = 3
     BASE_RETRY_DELAY = 0.5
 
-    def __init__(self, builder):
+    # Seconds to wait on one HTTP request before giving up on it.
+    #
+    # urlopen() without this argument blocks FOREVER -- Python has no default
+    # socket timeout. That is what hung a run on 2026-08-05: the process sat on
+    # a stalled connection for 22 hours, used zero CPU, wrote nothing to the log
+    # and never crashed. Every MUD read in this codebase already carries a
+    # deadline; the API call was the one blocking operation without one.
+    #
+    # A hang is worse than a crash for an unattended loop. A crash is visible
+    # and the retry logic below already handles it: a socket timeout raises
+    # TimeoutError, which is in TRANSIENT_ERRORS, so a stalled request now
+    # becomes an ordinary retry instead of a silent stop.
+    #
+    # 120s is deliberately generous. A long turn with a big prompt can take
+    # tens of seconds, and this is a backstop against hanging, not a latency
+    # target.
+    REQUEST_TIMEOUT = 120.0
+
+    def __init__(self, builder, *, request_timeout=None):
         self._builder = builder
+        self._request_timeout = (
+            request_timeout if request_timeout is not None else self.REQUEST_TIMEOUT
+        )
 
     def call(self, *, max_output_tokens=1024, tools=None):
         url = self._builder.url()
@@ -69,7 +90,7 @@ class Client:
             attempts += 1
             response = None
             try:
-                response = urllib.request.urlopen(request)
+                response = urllib.request.urlopen(request, timeout=self._request_timeout)
                 status = response.code
                 response_body = response.read()
             except urllib.error.HTTPError as e:

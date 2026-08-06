@@ -1,16 +1,16 @@
 {
-  "exp": 9763,
-  "exp_to_level": 237,
-  "gold": 644,
-  "hp": "57/57",
-  "hp_now": 57,
-  "level": 4,
+  "exp": 11446,
+  "exp_to_level": 8554,
+  "gold": 744,
+  "hp": "63/68",
+  "hp_now": 63,
+  "level": 5,
   "mana": "100/100",
-  "moves": "37/93",
-  "moves_now": 42,
-  "position": "a nexus#7cf280",
+  "moves": "69/94",
+  "moves_now": 69,
+  "position": "the north stairs#206ef9",
   "position_state": "fighting",
   "practice_sessions": 0,
-  "title": "Dummy the Pick-Pocket",
-  "updated_at": "2026-08-05T21:02:16-04:00"
+  "title": "Dummy the Sneak",
+  "updated_at": "2026-08-06T18:56:17-04:00"
 }
