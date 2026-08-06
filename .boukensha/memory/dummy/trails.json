@@ -264,9 +264,172 @@
       "the thieves' bar#436361",
       "south",
       "the secret yard#75f087"
+    ],
+    [
+      "the secret yard#75f087",
+      "north",
+      "the thieves' bar#436361"
+    ],
+    [
+      "the thieves' bar#436361",
+      "west",
+      "the entrance hall to the guild of thieves#550e13"
+    ],
+    [
+      "the entrance hall to the guild of thieves#550e13",
+      "north",
+      "the dark alley#289c56"
+    ],
+    [
+      "the dark alley#289c56",
+      "west",
+      "the common square#2fd405"
+    ],
+    [
+      "the common square#2fd405",
+      "north",
+      "market square#dbd60f"
+    ],
+    [
+      "market square#dbd60f",
+      "north",
+      "the temple square#f1db6c"
+    ],
+    [
+      "an open field by the great field#ab9e94",
+      "east",
+      "the end of the passage#98bc0f"
+    ],
+    [
+      "the dirty hallway#f8adae",
+      "south",
+      "a small room#4cdaa0"
+    ],
+    [
+      "a small room#4cdaa0",
+      "east",
+      "more of the hallway#f04bdb"
+    ],
+    [
+      "a nexus#7cf280",
+      "north",
+      "a bright hallway#408ffd"
+    ],
+    [
+      "a bright hallway#408ffd",
+      "north",
+      "the statue's room#cddc62"
+    ],
+    [
+      "the statue's room#cddc62",
+      "east",
+      "the hallway#6c6bae"
+    ],
+    [
+      "the hallway#6c6bae",
+      "east",
+      "the north stairs#206ef9"
+    ],
+    [
+      "the north stairs#206ef9",
+      "south",
+      "the south stairs#30b3c6"
+    ],
+    [
+      "a narrow passage#612b7b",
+      "north",
+      "the south stairs#30b3c6"
+    ],
+    [
+      "the south stairs#30b3c6",
+      "west",
+      "a bright hallway#a05dd5"
+    ],
+    [
+      "a bright hallway#a05dd5",
+      "west",
+      "a nexus#7cf280"
+    ],
+    [
+      "a bright hallway#a05dd5",
+      "east",
+      "the south stairs#30b3c6"
+    ],
+    [
+      "the south stairs#30b3c6",
+      "up",
+      "the balcony#1f17d5"
+    ],
+    [
+      "the balcony#1f17d5",
+      "north",
+      "the balcony#6cef71"
+    ],
+    [
+      "the balcony#6cef71",
+      "down",
+      "the north stairs#206ef9"
+    ],
+    [
+      "the north stairs#206ef9",
+      "west",
+      "the hallway#6c6bae"
+    ],
+    [
+      "the hallway#6c6bae",
+      "west",
+      "the statue's room#cddc62"
+    ],
+    [
+      "another corner#0f3b27",
+      "east",
+      "the alchemist's room#41f539"
+    ],
+    [
+      "the statue's room#cddc62",
+      "south",
+      "a bright hallway#408ffd"
+    ],
+    [
+      "a bright hallway#408ffd",
+      "south",
+      "a nexus#7cf280"
+    ],
+    [
+      "a nexus#7cf280",
+      "east",
+      "a bright hallway#a05dd5"
+    ],
+    [
+      "the south stairs#30b3c6",
+      "south",
+      "a narrow passage#612b7b"
+    ],
+    [
+      "the south stairs#30b3c6",
+      "north",
+      "the north stairs#206ef9"
     ]
   ],
   "rooms": {
+    "a bright hallway#408ffd": {
+      "description": "Wow!  What a change from the dismal passage to the south.  Whoever keeps this room up must really like newbies.  The walls and floor are clean, and tastefully decorated.  You also notice an interesting design on the floor.",
+      "exits": [
+        "north",
+        "south"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "A Bright Hallway"
+    },
+    "a bright hallway#a05dd5": {
+      "description": "Wow!  What a change from the dismal passage to the west.  Whoever keeps this  room up must really like newbies.  The walls and floor are clean, and tastefully decorated.  You also notice an interesting design on the floor.",
+      "exits": [
+        "east",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "A Bright Hallway"
+    },
     "a brighter hallway#5ba896": {
       "description": "The hallway continues on in a east-west direction... and it seems to be brightening up to the west.",
       "exits": [
@@ -276,14 +439,32 @@
       "first_seen": "2026-08-05",
       "name": "A Brighter Hallway"
     },
+    "a narrow passage#612b7b": {
+      "description": "The thin passage is plain and undecorated, but still clean.  It ends abruptly to the south at a small oak door, behind which you hear movement...",
+      "exits": [
+        "north"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "A Narrow Passage"
+    },
     "a nexus#7cf280": {
       "description": "Well... you've reached an intersection of two passages, to the north and east, the passage brightens, while the darker hallway continues to the south.",
       "exits": [
+        "east",
+        "north",
         "south",
         "west"
       ],
       "first_seen": "2026-08-05",
       "name": "A Nexus"
+    },
+    "a small room#4cdaa0": {
+      "description": "Hmmm... this is an interesting little room.  Ack, and there is an interesting little creature staring at you too.  He looks a bit surprised at your intrusion.  You can leave via the doors north or east, or you can stay and annoy him a bit more.  There also appears to be some type of well down here also, but it has a rather secure grate covering it.",
+      "exits": [
+        "north"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "A Small Room"
     },
     "a white square#18cc5f": {
       "description": "You are standing on a white marble square.  There is a large rusty gate to the east.",
@@ -308,6 +489,7 @@
     "another corner#0f3b27": {
       "description": "Another corner of the passage, and just as untidy as the rest of this place (maybe more so?).  There is a door to the east though... wonder where that leads?  Oh, and the hallway continues west and north.",
       "exits": [
+        "east",
         "north",
         "west"
       ],
@@ -405,6 +587,15 @@
       "first_seen": "2026-08-05",
       "name": "More Of The Hallway"
     },
+    "the alchemist's room#41f539": {
+      "description": "Lots of bottles and flasks lie about this room, but it all looks like worthless clutter.  It appears whatever alchemist has been working here is really very adept at his art.  There are a lot of formulae and spells written on the walls too... couldn't he buy some paper?  There is a door to the north, and also a dark stairway in the corner leading down, with a large sign next to it that you probably should read...",
+      "exits": [
+        "down",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Alchemist's Room"
+    },
     "the bakery#4e727c": {
       "description": "You are standing inside the small bakery.  A sweet scent of danish and fine bread fills the room.  The bread and Danish are arranged in fine order on the shelves, and seem to be of the finest quality. A small sign is on the counter.",
       "exits": [
@@ -412,6 +603,24 @@
       ],
       "first_seen": "2026-08-04",
       "name": "The Bakery"
+    },
+    "the balcony#1f17d5": {
+      "description": "Here you can look out and observe the world around.  Constructed in a semi-circle around the dome of the room, the balcony allows you to look out in almost any direction.  Wandering to the south end, you can see the great city of Midgaard off to the south-west.",
+      "exits": [
+        "down",
+        "north"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Balcony"
+    },
+    "the balcony#6cef71": {
+      "description": "Here you can look out and observe the world around.  Constructed in a semi-circle around the dome of the room, the balcony allows you to look out in almost any direction.  Wandering to the north end, you can see that the Great Fields north of Midgaard continue off towards the Dragonhelm Mountains to the north.",
+      "exits": [
+        "down",
+        "south"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Balcony"
     },
     "the beginning of the passage#86e9f7": {
       "description": "You find yourself entering a long corridor.  You can hear the sound of creatures roaming about, but you can't tell where the sound emanates from exactly. Exits lead to the east along the hallway, and south back to the entrance.",
@@ -517,6 +726,25 @@
       "first_seen": "2026-08-05",
       "name": "The Great Field Of Midgaard"
     },
+    "the hallway#6c6bae": {
+      "description": "As you continue wandering down the hallway, you notice banners, pictures, and other fine decorations adorning the walls all along this passage.  It seems very different from the dismal passage where you entered.",
+      "exits": [
+        "east",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Hallway"
+    },
+    "the north stairs#206ef9": {
+      "description": "Here, the hall opens into a wide room, with a high domed roof.  Now that that you have come clear of the enclosed passage, you can see that the stair leads upward to an open air balcony overlooking the area.  To the south the room continues, and another stair is visible matching the one in front of you.",
+      "exits": [
+        "south",
+        "up",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The North Stairs"
+    },
     "the secret yard#75f087": {
       "description": "The secret practice yard of thieves and assassins.  To the north is the bar.  A well leads down into darkness.",
       "exits": [
@@ -525,6 +753,26 @@
       ],
       "first_seen": "2026-08-05",
       "name": "The Secret Yard"
+    },
+    "the south stairs#30b3c6": {
+      "description": "Here, the hall opens into a wide room, with a high domed roof.  Now that that you have come clear of the enclosed passage, you can see that the stair leads upward to an open air balcony overlooking the area.  to the north the room continues, and another stair is visible matching the one in front of you.",
+      "exits": [
+        "north",
+        "south",
+        "up",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The South Stairs"
+    },
+    "the statue's room#cddc62": {
+      "description": "Here, the passage enters a small room.  Exits lead to the east and south, and you notice a wonderful, large (and tastefully done) statue to the north.",
+      "exits": [
+        "east",
+        "south"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Statue's Room"
     },
     "the temple of midgaard#b486df": {
       "description": "You are in the southern end of the temple hall in the Temple of Midgaard. The temple has been constructed from giant marble blocks, eternal in appearance, and most of the walls are covered by ancient wall paintings picturing Gods, giants and peasants. Large steps lead down through the grand temple gate, descending the huge mound upon which the temple is built and ends on the temple square below. To the west, you see the Reading Room.  The donation room is in a small alcove to your east.",

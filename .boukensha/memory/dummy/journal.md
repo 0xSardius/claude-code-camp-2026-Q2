@@ -5,11 +5,11 @@ _Generated 2026-08-05 from recorded state. Numbers in this section are rendered 
 ## Status
 - **Level:** 4
 - **HP:** 57/57
-- **Experience:** 8210
-- **Gold:** 494
-- **Last seen:** The Secret Yard
-- **Rooms known:** 31
-- **Routes walked:** 53
+- **Experience:** 9767
+- **Gold:** 644
+- **Last seen:** The Hallway
+- **Rooms known:** 42
+- **Routes walked:** 82
 
 ## What it knows
 
@@ -38,6 +38,10 @@ _Generated 2026-08-05 from recorded state. Numbers in this section are rendered 
 - Confirmed route from The Bakery to A Brighter Hallway (Newbie Zone): south, east, north, north, north, north, north, north, east, north, east, east, south, south, west (15 hops). Path: Bakery -> Main Street(Armory/Bakery) -> Market Square -> Temple Square -> Temple Of Midgaard -> By The Temple Altar -> Behind The Temple Altar -> The Great Field Of Midgaard -> The Great Field Of Midgaard (east side, near strange structure) -> The Entrance To The Newbie Zone -> The Beginning Of The Passage -> The Dirty Hallway -> A Nexus -> More Of The Hallway -> Another Corner -> A Brighter Hallway.
 - A baby dragon (pet dragon) roams 'More Of The Hallway' in the Newbie Zone. Consider returned 'The perfect match!' — an even fight, not a safe farm target. Avoid unless specifically prepared for a real fight.
 - Full walking route confirmed from The Great Chessboard Of Midgaard (an above-level-warning zone) back to civilization: west leads to 'A White Square' (also above-level, part of same chessboard zone - avoid), east from Chessboard leads to The Dirt Path, then east to The Great Field Of Midgaard (west side), then south chain: south to Great Field (same name, different sub-room) -> south to Behind The Temple Altar -> south to By The Temple Altar -> south to The Temple Of Midgaard -> south to The Temple Square -> south to Market Square -> then follow known Bakery/Guild routes from there.
+- Newbie Zone map extension: A Nexus has closed doors to north and east (previously unopened) in addition to the known south/west loop exits. North door from Nexus leads to A Bright Hallway (exits n/s), which leads north to The Statue's Room (exits e/s, statue north - unexplored beyond). The Nexus east door is still unexplored as of this session.
+- Newbie Zone layout confirmed: A Nexus has 4 exits now known - south/west (old loop), north (to a Bright Hallway n/s -> Statue's Room -> east -> The Hallway -> east -> North Stairs -> south -> South Stairs -> south -> A Narrow Passage with closed oak door and 'movement' behind it), and east (to a second, different Bright Hallway with only e/w exits, which connects west back to South Stairs). So North Stairs and South Stairs form a loop back to A Nexus via two different Bright Hallway rooms. Both stairs have an 'up' exit to an open air balcony overlooking the area - unexplored as of this session.
+- Both North Stairs and South Stairs have an 'up' exit leading to The Balcony (semi-circle room, exits n/s/d) - it's a dead-end scenic loop with no mobs found, connecting both stairs' 'up' to the same balcony area. Not worth revisiting for combat.
+- Another Corner (in the Newbie Zone hallway loop) has a previously-unopened east door leading to The Alchemist's Room (exits n/w/d). A sign next to a dark stairway down says: 'If you are below level 7 and alone, or below level 4 then bugger off! Or else don't blame me if you die...' This is almost certainly the entrance to the Minotaur/quasit danger zone - do NOT descend alone below level 7. The Newbie Alchemist mob here considers 'You would need some luck!' - risky, avoid.
 
 ## What it has learned
 
@@ -48,3 +52,8 @@ _Generated 2026-08-05 from recorded state. Numbers in this section are rendered 
 - [2026-08-05] Newbie monsters in the Newbie Zone hallways respawn very fast — sometimes a new one is already attacking before you finish looting the last corpse. Good, safe, repeatable exp farm (24-188 exp per kill observed) as long as you keep considering each one (all came back 'Easy').
 - [2026-08-05] Creepy little crawling things in the Newbie Zone pay surprisingly well when actually landed with backstab — one gave +171 exp, way above the usual few-gold trash-mob expectation. Worth considering and engaging them just like newbie monsters, not skipping them as filler.
 - [2026-08-05] Practicing a skill at the Thieves' Guild (Secret Yard) upgrades it one tier per session: backstab went from poor to average with a single practice session. Backstab is the priority skill to invest practice sessions into since it's the core thief opener.
+- [2026-08-05] The Newbie Zone hallway loop (Beginning of Passage/Dirty Hallway/Nexus/More of Hallway/Another Corner/Brighter Hallway) can go completely empty of newbie monsters for multiple full sweeps in a row, with only the even-match pet dragon present. Don't assume fast respawns are guaranteed — if a sweep comes up empty, it's fine to end the turn rather than fight the dragon.
+- [2026-08-05] On 2026-08 date, did 4+ consecutive full sweeps of the Newbie Zone hallway loop with zero newbie monsters or crawling things spawning — only the pet dragon was present, shifting between rooms. Respawn rate for this loop may be much slower than earlier notes suggested, or this was an unlucky dry spell. If this persists across many turns, consider checking other Newbie Zone branches (closed doors, entrance area) or accepting a prepared fight with the dragon rather than endlessly circling an empty loop.
+- [2026-08-05] Deeper Newbie Zone branch: from A Nexus, opening the previously-closed north door leads to A Bright Hallway, then north to The Statue's Room (exits e/s, statue to the north). This room spawns multiple 'newbie' mobs (clueless newbie, talkative newbie) that are Easy/Fairly easy. Most give small exp (8-60), but one kill of 'the talkative newbie' spiked to +301 exp with a dramatic death message ('you hear the talkative newbie's death cry') - likely a distinct tougher variant reusing the same name. Corpses need `get all N.corpse` with an ordinal when multiple corpses share similar names ('corpse of the clueless newbie' vs 'talkative newbie') - plain container name matching failed repeatedly and picked the wrong corpse.
+- [2026-08-05] The Hallway (east of The Statue's Room, itself east of A Bright Hallway north of A Nexus) spawns 'annoying newbie' mobs wielding a shiny newbie dagger. These are Easy to kill but give huge exp: +360 and +187 in two successive kills (vs single-digit-to-60 exp for the 'clueless/talkative newbie' mobs in The Statue's Room). This is likely the 'zombiefied newbie' 670-exp-class mob referenced in older notes, just reusing/rotating names ('annoying newbie'). High priority farming spot - much better exp/turn than the outer hallway loop.
+- [2026-08-05] In A Narrow Passage (south of South Stairs), a 'lost newbie' mob considers as 'The perfect match!' - an even fight, NOT a safe farm target, similar to the pet dragon. The passage dead-ends at a closed oak door with 'movement' heard behind it - untested, treat as possible Minotaur territory and avoid opening without a health/level buffer.
