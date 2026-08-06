@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from .hooks import Hook
 from .memory import Memory
-from .mud_parse import parse_room, parse_score, parse_status
+from .mud_parse import parse_practice, parse_room, parse_score, parse_status
 
 # Tools whose replies can contain a room description.
 ROOM_TOOLS = ("look", "move", "mud_connect", "flee", "track")
@@ -131,6 +131,13 @@ class MemoryHooks:
             score = parse_score(text)
             if score:
                 self.memory.update_state(**score)
+
+        # Read off ANY reply, not just the practice tool's: practising a skill
+        # prints the remaining count too, so the number stays current without a
+        # extra round trip after each one.
+        sessions = parse_practice(text)
+        if sessions is not None:
+            self.memory.update_state(practice_sessions=sessions)
 
         if payload.name in ROOM_TOOLS:
             previous = self._position

@@ -31,7 +31,8 @@ Build an agent architecture that can perceive, understand, decide, act, remember
 - We utilized some of the lessons we gained in week0 from training duymmy in the early loop into memory that helped create a framework for future agentic memory.
 - We found a bug in the way we were building maps and memory, and then buidl a rewrite around ti.
 - 8/5 focused on perfecting our grind loop, and getting the agent to play as our character.
-- We had a great move where in memory it was noticed that backstab worked well on a certain monster (creepy little crawling things) and autonomously created a better hunting
+- We had a great move where in memory it was noticed that backstab worked well on a certain monster (creepy little crawling things) and autonomously created a better hunting loop and skill usage. Great stuff. Levled up to level 5 in this loop alone
+-
 
 ## Technical Conclusions
 - It required significant rigor to get claude to stop assuming things it believed to be true, and then actually verifying them and building systems around them.

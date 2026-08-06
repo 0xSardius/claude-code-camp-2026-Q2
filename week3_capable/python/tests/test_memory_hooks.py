@@ -252,6 +252,45 @@ def after_turn_writes_the_player_file():
     assert "**Level:** 1" in journal
 
 
+# ---- practice sessions ------------------------------------------------------
+
+# Verbatim from the live server, 2026-08-05, dummy at level 4.
+PRACTICE = (
+    "You have 1 practice session remaining.\r\n"
+    "You know of the following skills:\r\n"
+    "backstab              (poor)\r\n"
+    "pick lock             (awful)\r\n"
+    "sneak                 (poor)\r\n"
+    "steal                 (bad)\r\n"
+    "\r\n57H 100M 76V (news) (motd) > "
+)
+
+
+@test
+def unspent_practice_sessions_are_recorded():
+    """What actually gates training. The driver used to trigger on
+    `exp_to_level <= 0`, which never fires -- CircleMUD levels you the moment
+    you earn the experience."""
+    mem, hooks = store(), Hooks()
+    MemoryHooks(mem).install(hooks)
+    fire_tool(hooks, "practice", {}, PRACTICE)
+    assert mem.state.get("practice_sessions") == 1, mem.state
+    # The status prompt on the same reply still lands.
+    assert mem.state.get("hp_now") == 57, mem.state
+
+
+@test
+def having_no_practice_sessions_is_a_real_zero():
+    """"You have no practice sessions remaining." must not read as a failed
+    parse -- leaving the old count in place would send the loop to the guild
+    forever."""
+    mem, hooks = store(), Hooks()
+    MemoryHooks(mem).install(hooks)
+    mem.update_state(practice_sessions=3)
+    fire_tool(hooks, "practice", {}, "You have no practice sessions remaining.\r\n")
+    assert mem.state.get("practice_sessions") == 0, mem.state
+
+
 if __name__ == "__main__":
     failures = 0
     for fn in TESTS:

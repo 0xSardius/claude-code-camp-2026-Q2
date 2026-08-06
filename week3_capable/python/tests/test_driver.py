@@ -32,15 +32,25 @@ def test(fn):
     return fn
 
 
-def build(*, exp=100, exp_to_level=500, hp="30/30", moves="85/85", level=3):
+def build(*, exp=100, exp_to_level=500, hp="30/30", moves="85/85", level=3,
+          practice_sessions=0):
     fake = FakeSession()
+    # Keep the fake's vitals in step with the ones seeded into memory. Every
+    # reply carries a status prompt and the hooks read health back off it, so a
+    # fake still reporting 30/30 silently heals a character the test set to
+    # 5/30 the moment the driver makes any mechanical call. Three separate
+    # tests worked around this individually before it was fixed here.
+    fake.hp, fake.max_hp = (int(x) for x in hp.split("/"))
+    fake.moves, fake.max_moves = (int(x) for x in moves.split("/"))
+
     ctx = Context(system="s", context_window=1_000_000)
     registry = Registry(ctx)
     mud_tools.register(registry, name="boukensha", password="x", session=fake)
     registry.dispatch("mud_connect", {})
 
     memory = Memory("t", dir=Path(tempfile.mkdtemp()))
-    memory.update_state(level=level, exp=exp, exp_to_level=exp_to_level, hp=hp, moves=moves)
+    memory.update_state(level=level, exp=exp, exp_to_level=exp_to_level, hp=hp, moves=moves,
+                        practice_sessions=practice_sessions)
 
     turns = []
 
@@ -52,7 +62,8 @@ def build(*, exp=100, exp_to_level=500, hp="30/30", moves="85/85", level=3):
     # calls have to reach memory the same way the Agent's do.
     hooks = Hooks()
     MemoryHooks(memory, registry=registry).install(hooks)
-    memory.update_state(level=level, exp=exp, exp_to_level=exp_to_level, hp=hp, moves=moves)
+    memory.update_state(level=level, exp=exp, exp_to_level=exp_to_level, hp=hp, moves=moves,
+                        practice_sessions=practice_sessions)
 
     # slept records how long the driver WOULD have waited, so the tests can
     # assert that resting spends real time without any test actually spending it.
@@ -121,11 +132,38 @@ def hunting_asks_the_model():
 
 
 @test
-def a_available_level_sends_it_to_train():
-    _, _, driver, turns = build(exp_to_level=0)
+def an_unspent_practice_session_sends_it_to_train():
+    """The trigger is unspent SESSIONS. It used to be `exp_to_level <= 0`, which
+    can never fire: CircleMUD levels you the moment you earn the experience, so
+    the counter drops to the next threshold and resets without ever being seen
+    at zero. The branch was unreachable for the whole week, and `dummy` was
+    found sitting on an unspent session with backstab still at 'poor'."""
+    _, _, driver, turns = build(practice_sessions=1)
     cycle = driver.step()
     assert cycle.action == "trained" and cycle.used_model is True, cycle
-    assert "practise" in turns[0].lower() and "thief" in turns[0].lower()
+    assert "1 unspent practice session" in turns[0], turns[0][:160]
+    assert "thief" in turns[0].lower()
+
+
+@test
+def after_training_it_re_reads_the_count_rather_than_assuming():
+    """Live 2026-08-05 the model practised backstab poor -> average, but the
+    reply it got back did not carry the remaining count, so the driver still
+    believed a session was unspent and burned a second model cycle finding out
+    otherwise. One mechanical round trip is cheaper than one turn."""
+    fake, _, driver, _ = build(practice_sessions=1)
+    fake.sent.clear()
+    cycle = driver.step()
+    assert cycle.action == "trained", cycle
+    assert any(c.startswith("prac") for c in fake.sent), fake.sent
+
+
+@test
+def having_enough_experience_is_not_what_sends_it_to_train():
+    """The old trigger, pinned so it cannot come back. Being close to a level
+    is not a reason to walk to the guild -- having something to spend is."""
+    _, _, driver, _ = build(exp_to_level=0, practice_sessions=0)
+    assert driver.step().action == "hunted"
 
 
 # ---- the driver's own tool calls have to reach memory ----------------------
@@ -528,14 +566,14 @@ def finishing_the_task_ends_the_run():
 
 
 @test
-def a_waiting_level_outranks_the_task():
-    """A level sitting unclaimed is free power that makes every later task
-    easier, so it is worth the one detour first."""
-    _, _, driver, turns = build(exp_to_level=0)
+def unspent_training_outranks_the_task():
+    """An unspent session is free power that makes every later task easier, so
+    it is worth the one detour first."""
+    _, _, driver, turns = build(practice_sessions=2)
     driver.task = "Go and buy bread."
     cycle = driver.step()
     assert cycle.action == "trained", cycle
-    assert "gain a level" in turns[0], turns[0][:150]
+    assert "2 unspent practice sessions" in turns[0], turns[0][:160]
 
 
 @test

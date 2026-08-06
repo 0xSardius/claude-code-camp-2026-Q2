@@ -199,6 +199,71 @@
       "the dirt path#74c6eb",
       "west",
       "the great chessboard of midgaard#8a9ea4"
+    ],
+    [
+      "the great chessboard of midgaard#8a9ea4",
+      "west",
+      "a white square#18cc5f"
+    ],
+    [
+      "a white square#18cc5f",
+      "east",
+      "the great chessboard of midgaard#8a9ea4"
+    ],
+    [
+      "the great chessboard of midgaard#8a9ea4",
+      "east",
+      "the dirt path#74c6eb"
+    ],
+    [
+      "the dirt path#74c6eb",
+      "east",
+      "the great field of midgaard#002d54"
+    ],
+    [
+      "the great field of midgaard#002d54",
+      "south",
+      "the great field of midgaard#96e4a5"
+    ],
+    [
+      "by the temple altar#3551e4",
+      "south",
+      "the temple of midgaard#b486df"
+    ],
+    [
+      "the temple of midgaard#b486df",
+      "south",
+      "the temple square#f1db6c"
+    ],
+    [
+      "the temple square#f1db6c",
+      "south",
+      "market square#dbd60f"
+    ],
+    [
+      "market square#dbd60f",
+      "south",
+      "the common square#2fd405"
+    ],
+    [
+      "the common square#2fd405",
+      "east",
+      "the dark alley#289c56"
+    ],
+    [
+      "the dark alley#289c56",
+      "south",
+      "the entrance hall to the guild of thieves#550e13"
+    ],
+    [
+      "the entrance hall to the guild of thieves#550e13",
+      "east",
+      "the thieves' bar#436361"
+    ],
+    [
+      "the thieves' bar#436361",
+      "south",
+      "the secret yard#75f087"
     ]
   ],
   "rooms": {
@@ -219,6 +284,17 @@
       ],
       "first_seen": "2026-08-05",
       "name": "A Nexus"
+    },
+    "a white square#18cc5f": {
+      "description": "You are standing on a white marble square.  There is a large rusty gate to the east.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "A White Square"
     },
     "an open field by the great field#ab9e94": {
       "description": "Finally, you are in an open field... it is so nice to breathe fresh air again!  You can return to that dank, smelly place to the east, or take the exit to the north which appears to lead into a large field.",
@@ -346,6 +422,27 @@
       "first_seen": "2026-08-05",
       "name": "The Beginning Of The Passage"
     },
+    "the common square#2fd405": {
+      "description": "The common square, people pass you, talking to each other.  To the west is the poor alley and to the east is the dark alley.  To the north, this square is connected to the market square.  From the south you notice a nasty smell.",
+      "exits": [
+        "east",
+        "north",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Common Square"
+    },
+    "the dark alley#289c56": {
+      "description": "The dark alley, to the west is the common square and to the south is the Guild of Thieves.  The alley continues east.",
+      "exits": [
+        "east",
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Dark Alley"
+    },
     "the dirt path#74c6eb": {
       "description": "You are walking along a narrow dirt path through the lush, green, fresh Midgaard countryside.  You can see to the horizon to the north and east; the busy city of Midgaard lies to the south.  All around you is healthy green grass and an occasional large oak tree.  The sun feels wonderful on your face and a pleasant wind blows through your hair.  Birds chirp quietly to themselves and you can smell the faint scent of flowers and freshly cut grass.  You feel like you could lie down in the grass and stay here forever, surrounded by powerful beauty in all directions. There is a large rusty gate sitting in a stone archway just to the west.",
       "exits": [
@@ -372,6 +469,15 @@
       ],
       "first_seen": "2026-08-05",
       "name": "The End Of The Passage"
+    },
+    "the entrance hall to the guild of thieves#550e13": {
+      "description": "The entrance hall to the thieves' and assassins' guild.  A place where you can lose both your life and your money, if you are not careful.  To the north is the dark alley and to the east is the thieves' bar.",
+      "exits": [
+        "east",
+        "north"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Entrance Hall To The Guild Of Thieves"
     },
     "the entrance to the newbie zone#4b71b8": {
       "description": "Ahhh... the entrance to the newbie zone!  Just the place you have been looking for.  Well, when you've readied yourself you can enter to the north.",
@@ -411,6 +517,15 @@
       "first_seen": "2026-08-05",
       "name": "The Great Field Of Midgaard"
     },
+    "the secret yard#75f087": {
+      "description": "The secret practice yard of thieves and assassins.  To the north is the bar.  A well leads down into darkness.",
+      "exits": [
+        "down",
+        "north"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Secret Yard"
+    },
     "the temple of midgaard#b486df": {
       "description": "You are in the southern end of the temple hall in the Temple of Midgaard. The temple has been constructed from giant marble blocks, eternal in appearance, and most of the walls are covered by ancient wall paintings picturing Gods, giants and peasants. Large steps lead down through the grand temple gate, descending the huge mound upon which the temple is built and ends on the temple square below. To the west, you see the Reading Room.  The donation room is in a small alcove to your east.",
       "exits": [
@@ -433,6 +548,15 @@
       ],
       "first_seen": "2026-08-05",
       "name": "The Temple Square"
+    },
+    "the thieves' bar#436361": {
+      "description": "The bar of the thieves.  Once upon a time this place was beautifully furnished, but now it seems almost empty.  To the south is the yard, and to the west is the entrance hall. (Maybe the furniture has been stolen?!)",
+      "exits": [
+        "south",
+        "west"
+      ],
+      "first_seen": "2026-08-05",
+      "name": "The Thieves' Bar"
     },
     "the weapon shop#d19bfc": {
       "description": "The smell of worked metals and various quenching oils fills the room.  Every available space in the room including the ceiling is loaded with various equipment and weaponry.  There is a small note on the counter.",

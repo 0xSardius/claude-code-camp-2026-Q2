@@ -78,6 +78,7 @@ class Assessment:
     movement: float | None = None
     position_state: str | None = None
     room: str | None = None
+    practice_sessions: int | None = None
 
 
 @dataclass
@@ -169,6 +170,9 @@ class Driver:
         self._no_progress = 0
         self._mechanical_actions = 0
         self._model_actions = 0
+        # Sentinel, not None: None is a real level value on a cold start, and
+        # using it here would ask for the practice count twice.
+        self._level_when_asked = object()
         # Model-chosen tool calls are counted where they happen -- in the
         # Agent -- rather than inferred from the turn's reply text. after_tool
         # is the one seam both sides pass through, so it is the only place the
@@ -203,6 +207,7 @@ class Driver:
             movement=movement,
             position_state=s.get("position_state"),
             room=room,
+            practice_sessions=s.get("practice_sessions"),
         )
 
     # ---- mechanical actions ---------------------------------------------
@@ -547,10 +552,20 @@ class Driver:
         is not repeated while the tracked values hold.
         """
         a = self.assess()
-        if a.health is not None and a.movement is not None and a.level is not None:
-            return a
-        self._do("check", {"kind": "score"})
-        return self.assess()
+        if a.health is None or a.movement is None or a.level is None:
+            self._do("check", {"kind": "score"})
+            a = self.assess()
+
+        # Practice sessions are not in `score`, so they need their own ask --
+        # once at the start, and again whenever the level changes, because
+        # levelling is what grants new ones. Not polled every cycle: after a
+        # skill is practised the reply carries the new count, and MemoryHooks
+        # reads it off any reply, so the number stays current for free.
+        if a.practice_sessions is None or a.level != self._level_when_asked:
+            self._do("practice", {})
+            self._level_when_asked = a.level
+            a = self.assess()
+        return a
 
     # ---- one cycle -------------------------------------------------------
 
@@ -609,6 +624,15 @@ class Driver:
         #    own judgment -- the cheap kind, made from state it already has.
         mode, task = self._next_task(a)
         self.run_turn(task)
+        if mode == "trained":
+            # Re-ask mechanically instead of trusting the turn to have told us.
+            # Live 2026-08-05 the model walked to the guild and practised
+            # backstab poor -> average, but the reply it happened to get back
+            # did not carry the remaining count, so the driver still believed
+            # there was a session to spend and burned a second model cycle
+            # rediscovering that there was not. One round trip is cheaper than
+            # one turn, and this is a fact we can just look up.
+            self._do("practice", {})
         progressed = self._check_progress(a)
         note = "progress" if progressed else "no progress"
         if self._task_done:
@@ -637,7 +661,14 @@ class Driver:
         waiting to be claimed is free power, and it makes every later task
         easier, so it is worth the one detour first.
         """
-        if a.exp_to_level is not None and a.exp_to_level <= 0:
+        # Unspent practice sessions, NOT `exp_to_level <= 0`, which is what this
+        # tested before and could never fire: CircleMUD levels you the moment
+        # you earn the experience, so the counter drops to the next threshold
+        # and resets without ever being observed at zero. The whole training
+        # branch was unreachable, and `dummy` was found on 2026-08-05 sitting
+        # on an unspent session with backstab still at "poor" -- the skill its
+        # best kills depend on.
+        if a.practice_sessions:
             return "trained", self._train_task(a)
         if self.task and not self._task_done:
             return "task", self._given_task(a)
@@ -703,9 +734,11 @@ class Driver:
         )
 
     def _train_task(self, a):
+        n = a.practice_sessions or 0
         return (
-            f"{self._preamble(a)}You have enough experience to gain a level. Go to "
-            "your guild and practise.\n\n"
+            f"{self._preamble(a)}You have {n} unspent practice "
+            f"session{'' if n == 1 else 's'}. Go to your guild and spend "
+            f"{'it' if n == 1 else 'them'}.\n\n"
             f"{self._tooling_note()}"
             "- Choose which skill to improve based on how you actually play — you are "
             "a thief, so backstab, sneak and hide matter more than raw melee. Your "

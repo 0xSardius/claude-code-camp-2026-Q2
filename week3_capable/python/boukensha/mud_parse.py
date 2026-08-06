@@ -163,3 +163,27 @@ def parse_score(text):
         out["position_state"] = m.group(1).lower()
 
     return out or None
+
+
+def parse_practice(text):
+    """Unspent practice sessions from a `practice` reply, or None.
+
+    Why this exists at all: the driver used to decide it was time to train from
+    `exp_to_level <= 0`, which never happens. CircleMUD levels you the moment
+    you earn the experience -- the counter falls to the next threshold and
+    resets, so nothing ever observes it at zero, and the whole training branch
+    was unreachable. Checked live 2026-08-05: `dummy` was sitting on an
+    unspent session with backstab still at "poor", which is the skill its best
+    kills depend on.
+
+    Sessions are what actually gates training, so read those instead. "You have
+    no practice sessions remaining." is a real zero, not a failed parse, which
+    is why the no-match case is handled explicitly rather than falling through.
+    """
+    clean = strip_ansi(text)
+    m = re.search(r"You have\s+(\d+)\s+practice session", clean, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    if re.search(r"You have no practice sessions", clean, re.IGNORECASE):
+        return 0
+    return None

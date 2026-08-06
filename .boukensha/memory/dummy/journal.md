@@ -5,11 +5,11 @@ _Generated 2026-08-05 from recorded state. Numbers in this section are rendered 
 ## Status
 - **Level:** 4
 - **HP:** 57/57
-- **Experience:** 8165
+- **Experience:** 8210
 - **Gold:** 494
-- **Last seen:** The Great Chessboard Of Midgaard
-- **Rooms known:** 25
-- **Routes walked:** 40
+- **Last seen:** The Secret Yard
+- **Rooms known:** 31
+- **Routes walked:** 53
 
 ## What it knows
 
@@ -37,6 +37,7 @@ _Generated 2026-08-05 from recorded state. Numbers in this section are rendered 
 - My starting 'shiny newbie dagger' has a magical glowing aura (implying a stat bonus) and is strictly better than the Weapon Shop's plain 13g dagger. None of the Weapon Shop's stock (flail, warhammer, club, long sword, small sword, dagger) is enchanted, so none is an upgrade over my current newbie gear at level 4.
 - Confirmed route from The Bakery to A Brighter Hallway (Newbie Zone): south, east, north, north, north, north, north, north, east, north, east, east, south, south, west (15 hops). Path: Bakery -> Main Street(Armory/Bakery) -> Market Square -> Temple Square -> Temple Of Midgaard -> By The Temple Altar -> Behind The Temple Altar -> The Great Field Of Midgaard -> The Great Field Of Midgaard (east side, near strange structure) -> The Entrance To The Newbie Zone -> The Beginning Of The Passage -> The Dirty Hallway -> A Nexus -> More Of The Hallway -> Another Corner -> A Brighter Hallway.
 - A baby dragon (pet dragon) roams 'More Of The Hallway' in the Newbie Zone. Consider returned 'The perfect match!' — an even fight, not a safe farm target. Avoid unless specifically prepared for a real fight.
+- Full walking route confirmed from The Great Chessboard Of Midgaard (an above-level-warning zone) back to civilization: west leads to 'A White Square' (also above-level, part of same chessboard zone - avoid), east from Chessboard leads to The Dirt Path, then east to The Great Field Of Midgaard (west side), then south chain: south to Great Field (same name, different sub-room) -> south to Behind The Temple Altar -> south to By The Temple Altar -> south to The Temple Of Midgaard -> south to The Temple Square -> south to Market Square -> then follow known Bakery/Guild routes from there.
 
 ## What it has learned
 
@@ -46,3 +47,4 @@ _Generated 2026-08-05 from recorded state. Numbers in this section are rendered 
 - [2026-08-05] The Great Field Of Midgaard is a large room requiring two 'north' moves to cross before its eastern exit (leading to the Newbie Zone entrance) becomes available — the room description changes slightly (mentions a strange structure/side path) once you've moved far enough. Don't assume one visit to a same-named room means you've passed through it; check exits each step on multi-room fields.
 - [2026-08-05] Newbie monsters in the Newbie Zone hallways respawn very fast — sometimes a new one is already attacking before you finish looting the last corpse. Good, safe, repeatable exp farm (24-188 exp per kill observed) as long as you keep considering each one (all came back 'Easy').
 - [2026-08-05] Creepy little crawling things in the Newbie Zone pay surprisingly well when actually landed with backstab — one gave +171 exp, way above the usual few-gold trash-mob expectation. Worth considering and engaging them just like newbie monsters, not skipping them as filler.
+- [2026-08-05] Practicing a skill at the Thieves' Guild (Secret Yard) upgrades it one tier per session: backstab went from poor to average with a single practice session. Backstab is the priority skill to invest practice sessions into since it's the core thief opener.

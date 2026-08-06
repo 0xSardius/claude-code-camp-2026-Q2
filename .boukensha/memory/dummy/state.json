@@ -1,15 +1,16 @@
 {
-  "exp": 8165,
-  "exp_to_level": 1835,
+  "exp": 8210,
+  "exp_to_level": 1790,
   "gold": 494,
   "hp": "57/57",
   "hp_now": 57,
   "level": 4,
   "mana": "100/100",
-  "moves": "92/93",
-  "moves_now": 76,
-  "position": "the great chessboard of midgaard#8a9ea4",
-  "position_state": "fighting",
+  "moves": "71/93",
+  "moves_now": 71,
+  "position": "the secret yard#75f087",
+  "position_state": "standing",
+  "practice_sessions": 0,
   "title": "Dummy the Pick-Pocket",
-  "updated_at": "2026-08-05T20:04:14-04:00"
+  "updated_at": "2026-08-05T20:17:37-04:00"
 }
