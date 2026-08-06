@@ -80,7 +80,10 @@ Build an agent architecture that can perceive, understand, decide, act, remember
 
 ## Key Takeaway
 
-ost of building an agent loop turned out to be bookkeeping. Getting it to act was never
+I have built an agent that can take an arbitrary task in the game, and finish it unattended. You can give the agent a sentence in english, and it will work, and report out its results using
+the task done tool. I completed three separate jobs this way: find and use the shop, map the street, and price up the weapon shop. I also enabled grinding experience loops, and got from level 4 to level 5 with dummy. I also enabled capacity for it to roleplay as its character (thief, I love rogues) and play to its strengths and record them as it discovers them. It can also naviagte the city from a map it builds itself. Recovery is built in and it will do that autonomously without prompting. Same with traidng, buying and selling, and pricing items. It will priortize and use better items as they are found. It also went and trained itself as part of a loop, judge and change its mind about actions. It is a working autnomous agentic loop that can play the game competently for hours without supervision, record its progress, and improve from what it learns. It is primed to scale as well and could go in several different directions, including better roleplay, exploration, or more efficient leveling and even quest loops.
+
+Most of building an agent loop turned out to be bookkeeping. Getting it to act was never
 the hard part. Every bug this week was the same shape: something knew a fact and failed to
 write it down, or wrote it down once and never checked it again. The agent did it with its
 health, its position and its own stale notes. I did it with a metric that measured the
