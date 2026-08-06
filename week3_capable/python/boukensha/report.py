@@ -154,6 +154,9 @@ class SessionReport:
             "truncations": len(self._by_phase("truncated")),
             "compactions": len(self._by_phase("compaction")),
             "hook_errors": Counter(e.get("hook") for e in self._by_phase("hook_error")),
+            "failed_turns": Counter(
+                str(e.get("error", "")).split(":")[0] for e in self._by_phase("turn_failed")
+            ),
             "reasoning_events": len(self._by_phase("reasoning")),
             "log_bytes": sum(p.stat().st_size for p in self.sources),
             **self._capability(sum(costs) if costs else None),
@@ -266,6 +269,10 @@ class SessionReport:
             + (f"   ({', '.join(f'{k}x{v}' for k, v in s['tool_failures'].most_common(3))})" if failures else ""))
         if s["hook_errors"]:
             add(f"  hook errors          {sum(s['hook_errors'].values())}   ({dict(s['hook_errors'])})")
+        failed = sum(s["failed_turns"].values())
+        if failed:
+            add(f"  failed turns         {failed}   ({', '.join(f'{k}x{v}' for k, v in s['failed_turns'].most_common(3))})"
+                "   <-- turns that raised instead of finishing")
         add("")
         add("TOOLS")
         if not s["tool_calls"]:

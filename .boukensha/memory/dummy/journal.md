@@ -4,11 +4,11 @@ _Generated 2026-08-06 from recorded state. Numbers in this section are rendered 
 
 ## Status
 - **Level:** 5
-- **HP:** 63/68
-- **Experience:** 11446
-- **Gold:** 744
-- **Last seen:** The North Stairs
-- **Rooms known:** 43
+- **HP:** 66/68
+- **Experience:** 14622
+- **Gold:** 979
+- **Last seen:** The Beginning Of The Passage
+- **Rooms known:** 44
 - **Routes walked:** 83
 
 ## What it knows
@@ -42,6 +42,7 @@ _Generated 2026-08-06 from recorded state. Numbers in this section are rendered 
 - Newbie Zone layout confirmed: A Nexus has 4 exits now known - south/west (old loop), north (to a Bright Hallway n/s -> Statue's Room -> east -> The Hallway -> east -> North Stairs -> south -> South Stairs -> south -> A Narrow Passage with closed oak door and 'movement' behind it), and east (to a second, different Bright Hallway with only e/w exits, which connects west back to South Stairs). So North Stairs and South Stairs form a loop back to A Nexus via two different Bright Hallway rooms. Both stairs have an 'up' exit to an open air balcony overlooking the area - unexplored as of this session.
 - Both North Stairs and South Stairs have an 'up' exit leading to The Balcony (semi-circle room, exits n/s/d) - it's a dead-end scenic loop with no mobs found, connecting both stairs' 'up' to the same balcony area. Not worth revisiting for combat.
 - Another Corner (in the Newbie Zone hallway loop) has a previously-unopened east door leading to The Alchemist's Room (exits n/w/d). A sign next to a dark stairway down says: 'If you are below level 7 and alone, or below level 4 then bugger off! Or else don't blame me if you die...' This is almost certainly the entrance to the Minotaur/quasit danger zone - do NOT descend alone below level 7. The Newbie Alchemist mob here considers 'You would need some luck!' - risky, avoid.
+- Inventory has a hard item-count cap (~21 items total including equipped gear) - loot attempts fail with 'you can't carry that many items' when full. Junk spare vests/daggers picked up from corpses immediately to free space rather than letting loot attempts silently fail.
 
 ## What it has learned
 
@@ -61,3 +62,7 @@ _Generated 2026-08-06 from recorded state. Numbers in this section are rendered 
 - [2026-08-06] Practiced backstab a second time (2026-08-06): average -> fair. Continuing to prioritize backstab practice sessions over hide/sneak/steal/pick lock, since it's the opener that's been paying off best (100-360+ exp hits). Guild practice room reached from Market Square via: south, east, south to Entrance Hall, then east, south to Secret Yard.
 - [2026-08-06] At South Stairs (Newbie Zone, reached via Nexus north door -> Bright Hallway -> Statue's Room -> Hallway -> North Stairs -> south), a 'newbie' mob described as 'talking a lot' gave a massive +685 exp when backstabbed while unaware — far above the usual 12-60 exp range for reused newbie names in this loop. This confirms the 'talkative newbie'/'annoying newbie' naming is inconsistent but occasionally hides a high-value variant worth 300-700+ exp. Always try backstab first here since the payout variance is huge and the downside (Easy mobs) is minimal.
 - [2026-08-06] The pet/baby dragon in the Newbie Zone (North Stairs/More Of The Hallway) was 'The perfect match!' (even fight) at level 4, but now considers 'Fairly easy' at level 5 - leveling up made this a great target. Backstabbed one for +429 exp. This mob respawns fast at North Stairs - a second one was already attacking moments later, killed for +56 exp. Reclassify the pet dragon as a good farm target now, not a danger to avoid, at level 5+.
+- [2026-08-06] The North Stairs (Newbie Zone) is an excellent farming spot at level 5: 'newbie monster' mobs spawn in a fast train there (multiple in a row), consider 'Easy', and backstab openers land reliably for big payouts (+179 exp on one kill) while also occasionally leaving an incapacitated one worth a big finishing blow (+176 exp). A full session at this one room yielded ~371 exp plus gold in a handful of rounds.
+- [2026-08-06] More Of The Hallway (Newbie Zone) has a fast-respawning 'zombiefied newbie' spawn train. Individual kills are small (16-44 exp), but finishing off one left 'mortally wounded' after a fight gave a massive +615 exp bonus. Worth continuing to chain-kill through this spawn train and always finish wounded ones rather than moving on.
+- [2026-08-06] Confirmed pattern: finishing off a mob that's 'incapacitated' or 'mortally wounded' (rather than a fresh kill) gives a massive bonus exp payout - +615 exp on a zombiefied newbie and +597 exp on a baby dragon, both far above their normal per-kill value (12-44 exp). This seems to be a death-blow/coup-de-grace bonus. Always finish off incapacitated/mortally wounded mobs immediately rather than moving past them.
+- [2026-08-06] A Nexus and More Of The Hallway together form a very productive farming loop at level 5: newbie monsters, creepy crawlers, and pet/baby dragons all spawn frequently here, mostly Easy/Fairly easy, and the occasional incapacitated/mortally-wounded finisher pays 150-600+ bonus exp. This is now the best known farming loop, better than the outer hallway or Statue's Room branches.

@@ -161,6 +161,15 @@ class Memory:
         p = self.path / name
         return p.read_text(encoding="utf-8") if p.is_file() else ""
 
+    def _write_text(self, name, text):
+        # Write-then-rename, for the same reason _write_json does it: this is
+        # the only path that REWRITES a notes file rather than appending, so a
+        # crash mid-write is the one way learnings.md could be truncated.
+        p = self.path / name
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, p)
+
     def _append_line(self, name, line):
         p = self.path / name
         prefix = "" if (not p.is_file() or self._read_text(name).endswith("\n")) else "\n"
@@ -289,6 +298,59 @@ class Memory:
             return False
         self._append_line("learnings.md", f"- [{self._today()}] {text}")
         return True
+
+    def revise_learning(self, old, new):
+        """Replace a lesson that has stopped being true.
+
+        THE PROBLEM THIS SOLVES. Learnings were append-only, so a note could
+        only ever be added to, never corrected. On 2026-08-05 the agent wrote
+        that the hallway loop was a good, safe, repeatable farm. That was true
+        when it wrote it. Days later the loop was farmed out, the note was still
+        there, and it sent the agent back twice for nothing. The same file also
+        held "avoid the pet dragon" and "the pet dragon is a good farm target"
+        at the same time, because contradicting an old note just appended a new
+        one next to it. Every turn the model read both and had to work out which
+        one still applied.
+
+        The old text is not deleted. It moves to superseded.md, which is not
+        injected into the conversation. That keeps the turn-by-turn context
+        clean -- learnings.md is read on EVERY turn, so a struck-through note
+        would be paid for forever -- while keeping the history, because "we
+        believed X and it turned out wrong" is exactly what you want when
+        reviewing an agent's reasoning later.
+
+        MATCHING DECLINES RATHER THAN GUESSES. `old` need only be a distinctive
+        fragment, but if it matches more than one lesson we change nothing and
+        say so. Picking one of several would silently retire a lesson the model
+        never meant to touch, and there is no way to notice that afterwards.
+
+        Returns (ok, message).
+        """
+        needle = re.sub(r"\s+", " ", str(old or "")).strip().lower()
+        replacement = str(new or "").strip()
+        if not needle:
+            return False, "Say which lesson to revise."
+        if not replacement:
+            return False, "Say what the lesson should say now."
+
+        lines = self._read_text("learnings.md").splitlines()
+        hits = [i for i, line in enumerate(lines)
+                if needle in re.sub(r"\s+", " ", line).strip().lower()]
+        if not hits:
+            return False, (f"No lesson matches {old!r}. Nothing changed — use "
+                           f"remember_learning if this is new.")
+        if len(hits) > 1:
+            return False, (f"{len(hits)} lessons match {old!r}, so I did not "
+                           f"guess which you meant. Quote a longer piece of the "
+                           f"one you want.")
+
+        i = hits[0]
+        retired = lines.pop(i)
+        self._write_text("learnings.md", "\n".join(lines).strip() + "\n" if lines else "")
+        self._append_line("superseded.md",
+                          f"- [{self._today()}] {retired.lstrip('- ').strip()}")
+        self._append_line("learnings.md", f"- [{self._today()}] {replacement}")
+        return True, f"Replaced. The old note moved to superseded.md:\n  {retired.strip()}"
 
     # ---- the map: rooms and observed edges -------------------------------
 

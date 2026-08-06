@@ -429,7 +429,8 @@
     "a bright hallway#a05dd5": {
       "description": "Wow!  What a change from the dismal passage to the west.  Whoever keeps this  room up must really like newbies.  The walls and floor are clean, and tastefully decorated.  You also notice an interesting design on the floor.",
       "exits": [
-        "east"
+        "east",
+        "west"
       ],
       "first_seen": "2026-08-05",
       "name": "A Bright Hallway"
@@ -454,8 +455,6 @@
     "a nexus#7cf280": {
       "description": "Well... you've reached an intersection of two passages, to the north and east, the passage brightens, while the darker hallway continues to the south.",
       "exits": [
-        "east",
-        "north",
         "south",
         "west"
       ],
@@ -493,7 +492,6 @@
     "another corner#0f3b27": {
       "description": "Another corner of the passage, and just as untidy as the rest of this place (maybe more so?).  There is a door to the east though... wonder where that leads?  Oh, and the hallway continues west and north.",
       "exits": [
-        "east",
         "north",
         "west"
       ],
@@ -817,6 +815,16 @@
       ],
       "first_seen": "2026-08-05",
       "name": "The Weapon Shop"
+    },
+    "you lunge at the newbie monster without managing to pierce him.#4f2b6b": {
+      "description": "The North Stairs Here, the hall opens into a wide room, with a high domed roof.  Now that that you have come clear of the enclosed passage, you can see that the stair leads upward to an open air balcony overlooking the area.  To the south the room continues, and another stair is visible matching the one in front of you.",
+      "exits": [
+        "south",
+        "up",
+        "west"
+      ],
+      "first_seen": "2026-08-06",
+      "name": "You lunge at the newbie monster without managing to pierce him."
     },
     "you successfully pierce the annoying newbie and his dead body falls to the ground in a lifeless heap.#8d53ff": {
       "description": "The annoying newbie is dead!  R.I.P. You receive 133 experience points. You rise a level! Your blood freezes as you hear the annoying newbie's death cry. The South Stairs Here, the hall opens into a wide room, with a high domed roof.  Now that that you have come clear of the enclosed passage, you can see that the stair leads upward to an open air balcony overlooking the area.  to the north the room continues, and another stair is visible matching the one in front of you.",

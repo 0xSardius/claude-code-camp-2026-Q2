@@ -227,14 +227,25 @@ class Harness:
 
         Returns the agent's final text. A LoopError or ApiError is returned as
         a string rather than raised: this is called from an unattended loop,
-        and one failed turn out of forty must not end the run. The driver
-        reads the return value; it does not parse it, so an error string
-        simply becomes a cycle that made no progress -- which is exactly what
-        it was.
+        and one failed turn out of forty must not end the run.
+
+        THE ERROR IS LOGGED BEFORE IT IS SWALLOWED. It used to go only into the
+        returned string, which nothing read and nothing recorded. The 20-cycle
+        run on 2026-08-06 ended on three consecutive failed turns and the log
+        showed a prompt followed by silence for each one -- no response, no
+        error, no clue. The failure was invisible in exactly the artefact meant
+        to explain it, and the cause is still unknown because the evidence was
+        discarded at this line.
+
+        A swallowed exception in an unattended loop has to be written down
+        somewhere. Catching it is right; catching it quietly is not.
         """
         try:
             return self.start_turn(task).run()
         except (LoopError, ApiError) as e:
+            self.logger.turn_failed(
+                n=self._turn, error=f"{type(e).__name__}: {e}",
+            )
             return f"[error] {type(e).__name__}: {e}"
 
     def driver(self, *, goal, policy=None, task=None):

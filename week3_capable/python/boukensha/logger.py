@@ -158,6 +158,12 @@ class Logger:
                          "mechanical_actions": int(mechanical_actions),
                          "model_actions": int(model_actions)})
 
+    # week3: a turn that raised instead of finishing. Separate from turn_end,
+    # which only covers turns that completed -- so a failed turn used to leave
+    # no trace at all beyond a prompt with no response after it.
+    def turn_failed(self, *, n, error):
+        self._write_log({"phase": "turn_failed", "n": n, "error": error})
+
     # week3: one line per driver RUN, written when it ends. The per-cycle lines
     # cannot answer "what did this cost per unit of progress" on their own,
     # because experience is only meaningful as a delta across the whole run.

@@ -37,6 +37,16 @@ def register(registry, *, memory=None, character=None, dir=None):
         return ("recorded" if memory.add_learning(learning)
                 else "nothing to record")
 
+    def revise_learning(old, new):
+        """Correcting a lesson, rather than adding a second one beside it.
+
+        Without this the only way to disagree with an old note was to append a
+        new one, so learnings.md ended up holding "avoid the pet dragon" and
+        "the pet dragon is a good farm target" at the same time, and the model
+        read both every turn."""
+        ok, message = memory.revise_learning(old, new)
+        return message
+
     def set_goal(goal):
         memory.set_goal(goal)
         return f"goal set: {goal}"
@@ -106,6 +116,27 @@ def register(registry, *, memory=None, character=None, dir=None):
         ),
         parameters={"learning": {"type": "string", "description": "One lesson about playing effectively"}},
         block=remember_learning,
+    )
+    registry.tool(
+        "revise_learning",
+        description=(
+            "Replace a lesson that has stopped being true. Use this INSTEAD of "
+            "recording a second lesson that contradicts an older one — otherwise "
+            "your notes end up holding both and you have to work out which still "
+            "applies every time you read them. Good reasons to revise: you have "
+            "levelled and a mob you avoided is now easy, a hunting ground has been "
+            "farmed out, or a tactic stopped working. Quote enough of the old "
+            "lesson to identify it uniquely; if it matches more than one, nothing "
+            "changes and you will be asked for more. The old wording is kept out "
+            "of the way, not thrown away."
+        ),
+        parameters={
+            "old": {"type": "string",
+                    "description": "A distinctive piece of the lesson to replace"},
+            "new": {"type": "string",
+                    "description": "What you now believe, and ideally what changed"},
+        },
+        block=revise_learning,
     )
     registry.tool(
         "set_goal",

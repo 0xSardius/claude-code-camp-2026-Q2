@@ -104,9 +104,9 @@ Would it have been worth the time and money?
 The money is nothing. Roughly $5 in model calls for the whole week, and $0.0006 per point
 of experience by the end. All the time went into finding bugs that show up in prod.
 
-What breaks first under real use?
-Stale memory, easily. Nothing ages or re-checks a fact, so a note that was true turns into
-a rut. Second is the map only recording edges in the direction you walked, so every trip
+What broke first under real use?
+Stale memory was a challenge. Nothing ages or re-checks a fact, so a note that was "true" became a later trap. 
+Second is the map only recording edges in the direction you walked, so every trip
 home is unmapped the first time and you pay for it again.
 
 What did we learn about engineering agent loops?

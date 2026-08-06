@@ -324,6 +324,65 @@ def journal_separates_generated_numbers_from_the_agents_account():
     assert (m.path / "journal.md").is_file()
 
 
+# ---- revising a lesson that stopped being true ------------------------------
+
+@test
+def a_lesson_can_be_revised_not_just_appended_to():
+    """Learnings were append-only, so learnings.md ended up holding "avoid the
+    pet dragon" and "the pet dragon is a good farm target" at the same time,
+    and the model read both every turn."""
+    m = store()
+    m.add_learning("The pet dragon is an even match at level 4 — avoid it.")
+    m.add_learning("Newbie monsters respawn fast in the hallways.")
+
+    ok, msg = m.revise_learning("pet dragon",
+                                "The pet dragon considers 'fairly easy' at level 5. Farm it.")
+    assert ok, msg
+    text = m.learnings()
+    assert "farm it" in text.lower(), text
+    assert "avoid it" not in text.lower(), "the old lesson is still in the way"
+    assert "Newbie monsters respawn fast" in text, "it revised the wrong one"
+
+
+@test
+def the_old_wording_is_kept_out_of_the_way_not_thrown_away():
+    """learnings.md is read on EVERY turn, so a struck-through note is paid for
+    forever. But "we believed X and it turned out wrong" is worth keeping when
+    reviewing the agent's reasoning later."""
+    m = store()
+    m.add_learning("The hallway loop is a good safe repeatable farm.")
+    m.revise_learning("hallway loop", "The hallway loop is farmed out. Go deeper.")
+
+    assert "good safe repeatable" not in m.learnings()
+    superseded = (m.path / "superseded.md").read_text()
+    assert "good safe repeatable farm" in superseded, superseded
+
+
+@test
+def an_ambiguous_revision_changes_nothing():
+    """Picking one of several matches would silently retire a lesson the model
+    never meant to touch, and there is no way to notice that afterwards."""
+    m = store()
+    m.add_learning("The beggar in Grubby Inn pays well.")
+    m.add_learning("The beggar respawns quickly.")
+
+    ok, msg = m.revise_learning("beggar", "Beggars are worthless now.")
+    assert not ok
+    assert "2 lessons match" in msg, msg
+    assert "pays well" in m.learnings() and "respawns quickly" in m.learnings()
+
+
+@test
+def revising_something_that_was_never_recorded_says_so():
+    m = store()
+    m.add_learning("Backstab works best from hiding.")
+    ok, msg = m.revise_learning("the minotaur", "It is easy actually.")
+    assert not ok
+    assert "No lesson matches" in msg, msg
+    assert "remember_learning" in msg, "it should say what to do instead"
+    assert "Backstab works best" in m.learnings()
+
+
 if __name__ == "__main__":
     failures = 0
     for fn in TESTS:
