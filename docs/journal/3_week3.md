@@ -80,11 +80,13 @@ Build an agent architecture that can perceive, understand, decide, act, remember
 
 ## Key Takeaway
 
-Most of building an agent loop turned out to be bookkeeping about what it actually knows.
-Getting it to act was never the hard part. The hard part was making sure that what it
-believed about its health, where it was standing, whether it was making progress, and
-whether its own notes were still true actually matched the world. Every bug this week
-lived in that gap.
+ost of building an agent loop turned out to be bookkeeping. Getting it to act was never
+the hard part. Every bug this week was the same shape: something knew a fact and failed to
+write it down, or wrote it down once and never checked it again. The agent did it with its
+health, its position and its own stale notes. I did it with a metric that measured the
+wrong thing, a launcher that deleted its own evidence, and an error handler that swallowed
+the one message that would have explained the failure. The agent and the harness had the
+same bug.
 
 The five retrospective questions
 
